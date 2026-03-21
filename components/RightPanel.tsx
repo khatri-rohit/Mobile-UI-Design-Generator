@@ -1,5 +1,6 @@
 import { Button } from '@/components/ui/button'
 import { Sparkles } from 'lucide-react'
+import { useEffect, useRef } from 'react'
 
 type RightPanelProps = {
     prompt: string
@@ -18,6 +19,9 @@ const RightPanel = ({
     conversation,
     setConversation,
 }: RightPanelProps) => {
+    const conversationViewportRef = useRef<HTMLDivElement>(null)
+    const conversationEndRef = useRef<HTMLDivElement>(null)
+
     const quickPrompts = [
         'Board-ready KPI dashboard with quarterly trend blocks',
         'Compliance-first admin console with audit timeline',
@@ -25,6 +29,15 @@ const RightPanel = ({
     ]
 
     const canGenerate = !!prompt.trim() && !isGenerating
+
+    useEffect(() => {
+        if (!conversationViewportRef.current) return
+
+        conversationEndRef.current?.scrollIntoView({
+            behavior: 'auto',
+            block: 'end',
+        })
+    }, [conversation])
 
     return (
         <aside className='relative w-full overflow-hidden border-t border-zinc-300/70 bg-zinc-950 p-5 text-zinc-100 md:h-screen md:w-[31.2rem] md:border-t-0 md:border-l md:border-l-zinc-800 md:p-6'>
@@ -46,17 +59,26 @@ const RightPanel = ({
                     ))}
                 </div>
                 <div className='my-6 h-px w-full bg-zinc-700/50' />
-                <div className='flex-1 overflow-y-auto flex flex-col-reverse gap-3'>
+                <div ref={conversationViewportRef} 
+                className='flex-1 space-y-3 overflow-y-auto rounded-2xl p-3 scrolling'>
                     {conversation.length === 0 && (
-                        <div className='py-4 text-center text-sm text-zinc-500'>
+                        <div className='py-8 text-center text-sm text-zinc-500'>
                             No conversation yet. Start by entering a prompt and generating a layout.
                         </div>
                     )}
                     {conversation.map((message, index) => (
-                        <div key={index} id={`message-${index}`} className={`rounded-lg px-4 py-3 h-96 text-sm ${message.role === 'user' ? 'bg-zinc-800 text-zinc-100' : 'bg-zinc-700 text-zinc-200'} wrap-break-word overflow-y-auto scrolling`}>
-                            {message.content}
+                        <div
+                            key={index}
+                            id={`message-${index}`}
+                            className={`max-w-[90%] max-h-96 rounded-2xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap overflow-auto scrolling ${message.role === 'user'
+                                ? 'ml-auto bg-zinc-100 text-zinc-950'
+                                : 'mr-auto bg-zinc-800 text-zinc-100'
+                                }`}
+                        >
+                            {message.content || (message.role === 'assistant' ? '...' : '')}
                         </div>
                     ))}
+                    <div ref={conversationEndRef} />
                 </div>
                 <div className='mt-auto space-y-3 pt-5'>
                     <p className='font-(family-name:--font-geist-mono) text-[11px] font-semibold uppercase tracking-[0.2em] text-zinc-400'>Prompt Blueprint</p>
@@ -69,7 +91,11 @@ const RightPanel = ({
 
                     <Button
                         onClick={() => {
-                            setConversation(prev => [{ role: 'user', content: prompt }, ...prev])
+                            setConversation(prev => [
+                                ...prev,
+                                { role: 'user', content: prompt },
+                                { role: 'assistant', content: '' },
+                            ])
                             onGenerate()
                         }}
                         disabled={!canGenerate}

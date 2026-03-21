@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 import RightPanel from '@/components/RightPanel';
 import { TLComponents, type Editor, Tldraw, useEditor, useValue } from 'tldraw'
 import 'tldraw/tldraw.css'
@@ -59,7 +59,6 @@ const components: TLComponents = {
 }
 
 const StudioPage = () => {
-    const [editor, setEditor] = useState<Editor | null>(null)
     // const [prompt, setPrompt] = useState('Design a clean dashboard for analytics with cards and charts')
     const [prompt, setPrompt] = useState('Why is the sky blue?')
     const [isGenerating, setIsGenerating] = useState(false)
@@ -118,23 +117,28 @@ const StudioPage = () => {
     function handleEvent(event: any) {
         if (event.type === "chat") {
             setConversation((prev) => {
-                const oldMessage = [...prev]
-                const lastMessage = oldMessage[0]
-                if (lastMessage) {
-                    lastMessage.content += event.text
+                const updated = [...prev]
+                const lastMessage = updated[updated.length - 1]
+
+                if (lastMessage && lastMessage.role === 'assistant') {
+                    updated[updated.length - 1] = {
+                        ...lastMessage,
+                        content: lastMessage.content + event.text,
+                    }
+                    return updated
                 }
 
-                return [lastMessage, ...oldMessage]
+                return [...updated, { role: 'assistant', content: event.text }]
             })
-            if (event.type === "error") {
-                console.error("Stream error:", event.message);
-            }
+        }
+
+        if (event.type === "error") {
+            console.error("Stream error:", event.message);
         }
     }
 
 
     const handleMount = (mountedEditor: Editor) => {
-        setEditor(mountedEditor)
         mountedEditor.updateInstanceState({ isGridMode: true })
     }
 
