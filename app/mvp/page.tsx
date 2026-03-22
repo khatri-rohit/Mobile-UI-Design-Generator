@@ -1,9 +1,12 @@
 "use client";
 
 import { useLayoutEffect, useRef, useState } from 'react';
-import RightPanel from '@/components/RightPanel';
-import { TLComponents, type Editor, Tldraw, useEditor, useValue } from 'tldraw'
+import { createShapeId, TLComponents, type Editor, Tldraw, useEditor, useValue } from 'tldraw'
 import 'tldraw/tldraw.css'
+
+import RightPanel from '@/components/RightPanel';
+import { PhoneFrameShapeUtil } from '@/components/shapes/PhoneFrameShapeUtil';
+import logger from '@/lib/logger';
 
 const components: TLComponents = {
     Grid: ({ size, ...camera }) => {
@@ -11,7 +14,8 @@ const components: TLComponents = {
         const screenBounds = useValue('screenBounds', () => editor.getViewportScreenBounds(), [])
         const devicePixelRatio = useValue('dpr', () => editor.getInstanceState().devicePixelRatio, [])
         const canvas = useRef<HTMLCanvasElement>(null)
-        editor.user.updateUserPreferences({ colorScheme: 'system' })
+        editor.user.updateUserPreferences({ colorScheme: 'system', color: '#202124' })
+
         useLayoutEffect(() => {
             if (!canvas.current) return
 
@@ -34,7 +38,7 @@ const components: TLComponents = {
             const numRows = Math.round((endPageY - startPageY) / size)
             const numCols = Math.round((endPageX - startPageX) / size)
 
-            const majorDot = '#5f5f5f'
+            const majorDot = '#7f7f7f'
             const majorStep = 2
             const majorRadius = 2 * devicePixelRatio
 
@@ -58,9 +62,16 @@ const components: TLComponents = {
     },
 }
 
+const shapeUtils = [PhoneFrameShapeUtil]  // defined OUTSIDE component — never recreate in render
+
+
 const StudioPage = () => {
-    // const [prompt, setPrompt] = useState('Design a clean dashboard for analytics with cards and charts')
-    const [prompt, setPrompt] = useState('Why is the sky blue?')
+    const editorRef = useRef<Editor | null>(null)
+    const shapeIdRef = useRef<ReturnType<typeof createShapeId> | null>(null)
+    const accumulatedTextRef = useRef('')
+
+    const [prompt, setPrompt] = useState('Design a clean dashboard for analytics with cards and charts')
+    // const [prompt, setPrompt] = useState('Why is the sky blue?')
     const [isGenerating, setIsGenerating] = useState(false)
     const [conversation, setConversation] = useState<Array<{ role: string; content: string }>>([])
 
@@ -69,6 +80,13 @@ const StudioPage = () => {
 
         setIsGenerating(true)
         try {
+            if (!editorRef.current) throw new Error("Editor not initialized")
+
+            // 2. On each token — accumulate and update the shape
+            shapeIdRef.current = null
+            accumulatedTextRef.current = ''
+
+
             const response = await fetch('/api/generate', {
                 method: 'POST',
                 headers: {
@@ -79,7 +97,8 @@ const StudioPage = () => {
 
             if (!response.ok || !response.body) {
                 const errorData = await response.json()
-                console.log("Error resposen: ", errorData)
+                
+                logger.error("Error response: ", errorData)
                 throw new Error(errorData.message || 'Generation failed')
             }
 
@@ -101,13 +120,12 @@ const StudioPage = () => {
                     if (raw === '[DONE]') return
 
                     const event = JSON.parse(raw)
-                    // console.log(event); // at minimum — until tldraw integration is wired
-                    handleEvent(event)
+                    handleEvent(event) // <-- pass accumulated as an argument to handleEvent
                 }
             }
 
         } catch (error) {
-            console.error('Error generating layout:', error)
+            logger.error('Error generating layout:', error)
         } finally {
             setIsGenerating(false)
         }
@@ -115,7 +133,65 @@ const StudioPage = () => {
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     function handleEvent(event: any) {
-        if (event.type === "chat") {
+        const editor = editorRef.current
+        if (!editor) return
+
+        if (event.type === 'screen_start') {
+            const id = createShapeId()
+            shapeIdRef.current = id
+            accumulatedTextRef.current = ''
+            editor.createShape({
+                id,
+                type: 'phone-frame',
+                x: 100,
+                y: 100,
+                props: {
+                    w: 200,
+                    h: 380,
+                    screenName: event.screen,
+                    content: '',
+                    state: 'skeleton',
+                }
+
+            })
+            editor.zoomToFit({ animation: { duration: 300 } })
+        } else if (event.type === 'code_chunk') {
+            if (!shapeIdRef.current) {
+                const id = createShapeId()
+                shapeIdRef.current = id
+                accumulatedTextRef.current = ''
+                editor.createShape({
+                    id,
+                    type: 'phone-frame',
+                    x: 100,
+                    y: 100,
+                    props: {
+                        w: 200,
+                        h: 380,
+                        screenName: event.screen,
+                        content: '',
+                        state: 'skeleton',
+                    }
+                })
+            }
+
+            accumulatedTextRef.current += event.token
+            editor.updateShape({
+                id: shapeIdRef.current,
+                type: 'phone-frame',
+                props: {
+                    w: 200,
+                    h: 380,
+                    screenName: event.screen,
+                    content: accumulatedTextRef.current,
+                    state: 'streaming',
+                }
+            })
+        } else if (event.type === 'screen_done') {
+            // TODO: finalize shape state if needed
+
+
+        } else if (event.type === 'chat' || event.type === 'spec') {
             setConversation((prev) => {
                 const updated = [...prev]
                 const lastMessage = updated[updated.length - 1]
@@ -133,12 +209,13 @@ const StudioPage = () => {
         }
 
         if (event.type === "error") {
-            console.error("Stream error:", event.message);
+            logger.error("Stream error:", event.message);
         }
     }
 
 
     const handleMount = (mountedEditor: Editor) => {
+        editorRef.current = mountedEditor   // always current, never stale
         mountedEditor.updateInstanceState({ isGridMode: true })
     }
 
@@ -148,7 +225,7 @@ const StudioPage = () => {
             <div className="relative h-full min-h-[45vh] flex-1 md:min-h-0">
 
                 <div className="h-full">
-                    <Tldraw hideUi components={components} onMount={handleMount} />
+                    <Tldraw hideUi shapeUtils={shapeUtils} components={components} onMount={handleMount} />
                 </div>
             </div>
             <RightPanel

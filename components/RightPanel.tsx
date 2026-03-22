@@ -86,7 +86,7 @@ const RightPanel = ({
                         value={prompt}
                         onChange={(event) => onPromptChange(event.target.value)}
                         placeholder='Describe the UI system to generate for your product team...'
-                        className='h-36 w-full resize-none rounded-2xl border border-zinc-700 bg-zinc-900 px-4 py-3 text-sm leading-relaxed text-zinc-100 outline-none transition duration-150 placeholder:text-zinc-500 focus:border-zinc-500 focus:ring-2 focus:ring-zinc-500/30'
+                        className='scrolling h-36 w-full resize-none rounded-2xl border border-zinc-700 bg-zinc-900 px-4 py-3 text-sm leading-relaxed text-zinc-100 outline-none transition duration-150 placeholder:text-zinc-500 focus:border-zinc-500 focus:ring-2 focus:ring-zinc-500/30'
                     />
 
                     <Button

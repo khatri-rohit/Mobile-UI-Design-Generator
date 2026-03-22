@@ -1,4 +1,7 @@
 // Takes Ollama's NDJSON ReadableStream,
+
+import logger from "./logger"
+
 // returns a new ReadableStream that emits proper SSE lines
 export function ollamaToSSE(
   ollamaBody: ReadableStream<Uint8Array>,
@@ -80,7 +83,7 @@ function tryParseLine(
   } catch {
     // malformed JSON line — skip silently in production, log in dev
     if (process.env.NODE_ENV === 'development') {
-      console.warn('[ollama] malformed line:', line)
+      logger.warn('[ollama] malformed line:', line)
     }
   }
 }

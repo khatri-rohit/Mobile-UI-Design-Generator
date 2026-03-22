@@ -131,7 +131,6 @@
 .scrolling {
   scrollbar-width: thin;
   scrollbar-color: var(--color-border) transparent;
-  cursor: pointer;
   scroll-behavior: smooth;
   scroll-margin-top: '2rem';
 }
