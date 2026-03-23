@@ -5,19 +5,30 @@ import { useLayoutEffect, useRef, useState } from 'react';
 import { createShapeId, TLComponents, type Editor, Tldraw, useEditor, useValue, TLShapeId } from 'tldraw'
 import 'tldraw/tldraw.css'
 
-import RightPanel from '@/components/RightPanel';
 import { PhoneFrameShapeUtil } from '@/components/shapes/PhoneFrameShapeUtil';
 import logger from '@/lib/logger';
-import { getGenerationLayout, getInitialDimensions } from '@/lib/canvasLayout';
+import { getGenerationLayout, getInitialDimensionsForPlatform } from '@/lib/canvasLayout';
 import { useCompilerWorker } from '@/hooks/useCompilerWorker';
+import { GenerationPlatform } from '@/lib/types';
+import { Button } from '@/components/ui/button';
+import { Bot, Eraser, Link2, Monitor, Pencil, Plus, Redo2, Search, Smartphone, Sparkles, SquareDashedMousePointer, Star, Undo2 } from 'lucide-react';
 
 const components: TLComponents = {
+    Background: () => (
+        <div
+            className="tl-background"
+            style={{
+                background:
+                    'radial-gradient(circle at 18% 12%, rgba(255,140,43,0.08), transparent 22%), radial-gradient(circle at 82% 84%, rgba(66, 157, 255, 0.08), transparent 26%), #10141d',
+            }}
+        />
+    ),
     Grid: ({ size, ...camera }) => {
         const editor = useEditor()
         const screenBounds = useValue('screenBounds', () => editor.getViewportScreenBounds(), [])
         const devicePixelRatio = useValue('dpr', () => editor.getInstanceState().devicePixelRatio, [])
         const canvas = useRef<HTMLCanvasElement>(null)
-        editor.user.updateUserPreferences({ colorScheme: 'system', color: '#202124' })
+        editor.user.updateUserPreferences({ colorScheme: 'dark', color: '#202124' })
 
         useLayoutEffect(() => {
             if (!canvas.current) return
@@ -41,7 +52,7 @@ const components: TLComponents = {
             const numRows = Math.round((endPageY - startPageY) / size)
             const numCols = Math.round((endPageX - startPageX) / size)
 
-            const majorDot = '#7f7f7f'
+            const majorDot = '#2d3442'
             const majorStep = 2
             const majorRadius = 2 * devicePixelRatio
 
@@ -77,7 +88,14 @@ const StudioPage = () => {
     const [prompt, setPrompt] = useState('Design a clean dashboard for analytics with cards and charts')
     // const [prompt, setPrompt] = useState('Why is the sky blue?')
     const [isGenerating, setIsGenerating] = useState(false)
-    const [conversation, setConversation] = useState<Array<{ role: string; content: string }>>([])
+    const [selectedPlatform, setSelectedPlatform] = useState<GenerationPlatform>('web')
+
+    const quickPrompts = [
+        'UGC agency landing page with hero, social proof, pricing, and conversion-focused contact section',
+        'Creative portfolio + service highlights with strong CTA hierarchy',
+        'Case-study first website with testimonial and trust metrics blocks',
+        'Modern brand site with cinematic hero and performance stats strip',
+    ]
 
     const handleGenerate = async () => {
         if (!prompt.trim()) return
@@ -96,7 +114,7 @@ const StudioPage = () => {
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ prompt }),
+                body: JSON.stringify({ prompt, platform: selectedPlatform }),
             })
 
             if (!response.ok || !response.body) {
@@ -157,9 +175,10 @@ const StudioPage = () => {
 
         if (event.type === 'spec') {
             const spec = event.spec
+            const platform: GenerationPlatform = spec.platform === 'mobile' ? 'mobile' : 'web'
             const screensWithDims: Array<{ name: string; w: number; h: number }> = spec.screens.map((screenName: string) => ({
                 name: screenName,
-                ...getInitialDimensions(screenName),
+                ...getInitialDimensionsForPlatform(screenName, platform),
             }))
             const positions = getGenerationLayout(editor, screensWithDims)
             frameIdsRef.current = new Map()
@@ -177,6 +196,7 @@ const StudioPage = () => {
                         w: screen.w,
                         h: screen.h,
                         screenName: screen.name,
+                        platform,
                         content: '',
                         state: 'skeleton',
                         srcdoc: '',
@@ -251,23 +271,105 @@ const StudioPage = () => {
         mountedEditor.updateInstanceState({ isGridMode: true })
     }
 
+    const canGenerate = !!prompt.trim() && !isGenerating
+
     return (
-        <div className="relative flex h-screen w-full flex-col-reverse overflow-hidden md:flex-row">
+        <div className="relative h-screen w-full overflow-hidden bg-[#0d1017] text-zinc-100">
+            <div className="absolute inset-0">
+                <Tldraw hideUi shapeUtils={shapeUtils} components={components} onMount={handleMount} />
+            </div>
 
-            <div className="relative h-full min-h-[45vh] flex-1 md:min-h-0">
+            <div className="pointer-events-none absolute inset-0">
+                <div className="pointer-events-auto absolute left-4 top-4 flex items-center gap-2 rounded-2xl border border-zinc-700/80 bg-zinc-950/90 px-3 py-2 backdrop-blur-md">
+                    <Bot className="size-4 text-amber-300" />
+                    <p className="text-xs font-semibold tracking-wide text-zinc-200">Canvas Generation Studio</p>
+                    <span className="rounded-full bg-zinc-800 px-2 py-0.5 text-[10px] text-zinc-400">3.0 Flash</span>
+                </div>
 
-                <div className="h-full">
-                    <Tldraw hideUi shapeUtils={shapeUtils} components={components} onMount={handleMount} />
+                <div className="pointer-events-auto absolute left-4 top-16 flex max-w-[70vw] flex-wrap gap-2">
+                    {quickPrompts.map((item) => (
+                        <button
+                            key={item}
+                            type="button"
+                            onClick={() => setPrompt(item)}
+                            className="rounded-xl border border-zinc-700/80 bg-zinc-900/80 px-3 py-1.5 text-xs text-zinc-300 transition hover:border-amber-300/60 hover:text-zinc-100"
+                        >
+                            {item}
+                        </button>
+                    ))}
+                </div>
+
+                <div className="pointer-events-auto absolute right-4 top-1/2 flex -translate-y-1/2 flex-col gap-2 rounded-2xl border border-zinc-700/80 bg-zinc-950/90 p-2 backdrop-blur-md">
+                    {[SquareDashedMousePointer, Pencil, Link2, Eraser, Search, Undo2, Redo2, Star].map((Icon, index) => (
+                        <button
+                            key={index}
+                            type="button"
+                            className="flex size-9 items-center justify-center rounded-lg border border-zinc-800 bg-zinc-900 text-zinc-300 transition hover:border-zinc-600 hover:text-white"
+                        >
+                            <Icon className="size-4" />
+                        </button>
+                    ))}
+                </div>
+
+                <div className="pointer-events-auto absolute bottom-4 left-1/2 w-[min(980px,calc(100%-1.5rem))] -translate-x-1/2 rounded-3xl border border-zinc-700/80 bg-zinc-950/95 p-3 shadow-2xl shadow-black/40 backdrop-blur-md">
+                    <div className="mb-2 flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-2 rounded-xl border border-zinc-800 bg-zinc-900/90 p-1">
+                            <Button
+                                type="button"
+                                size="sm"
+                                variant={selectedPlatform === 'web' ? 'default' : 'ghost'}
+                                onClick={() => setSelectedPlatform('web')}
+                                className="h-8 rounded-lg"
+                            >
+                                <Monitor className="size-4" />
+                                Web
+                            </Button>
+                            <Button
+                                type="button"
+                                size="sm"
+                                variant={selectedPlatform === 'mobile' ? 'default' : 'ghost'}
+                                onClick={() => setSelectedPlatform('mobile')}
+                                className="h-8 rounded-lg"
+                            >
+                                <Smartphone className="size-4" />
+                                Mobile
+                            </Button>
+                        </div>
+                        <span className="text-[11px] text-zinc-500">Use Enter to generate and Shift+Enter for a new line</span>
+                    </div>
+
+                    <div className="flex items-end gap-2">
+                        <button
+                            type="button"
+                            className="flex size-11 shrink-0 items-center justify-center rounded-2xl border border-zinc-800 bg-zinc-900 text-zinc-300 transition hover:border-zinc-600 hover:text-zinc-100"
+                        >
+                            <Plus className="size-5" />
+                        </button>
+
+                        <textarea
+                            value={prompt}
+                            onChange={(event) => setPrompt(event.target.value)}
+                            onKeyDown={(event) => {
+                                if (event.key === 'Enter' && !event.shiftKey) {
+                                    event.preventDefault()
+                                    if (canGenerate) handleGenerate()
+                                }
+                            }}
+                            placeholder="What would you like to change or create?"
+                            className="scrolling h-11 min-h-11 flex-1 resize-none rounded-2xl border border-zinc-700 bg-zinc-900 px-4 py-2.5 text-sm text-zinc-100 outline-none transition placeholder:text-zinc-500 focus:border-zinc-500 focus:ring-2 focus:ring-zinc-500/30"
+                        />
+
+                        <Button
+                            onClick={handleGenerate}
+                            disabled={!canGenerate}
+                            className="h-11 rounded-2xl bg-zinc-100 px-4 text-zinc-950 hover:bg-white disabled:bg-zinc-700 disabled:text-zinc-300"
+                        >
+                            <Sparkles className={`size-4 ${isGenerating ? 'animate-spin' : ''}`} />
+                            {isGenerating ? 'Generating...' : 'Generate'}
+                        </Button>
+                    </div>
                 </div>
             </div>
-            <RightPanel
-                prompt={prompt}
-                isGenerating={isGenerating}
-                onPromptChange={setPrompt}
-                onGenerate={handleGenerate}
-                conversation={conversation}
-                setConversation={setConversation}
-            />
         </div>
     )
 }
