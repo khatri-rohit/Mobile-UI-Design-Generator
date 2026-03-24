@@ -64,6 +64,6 @@ export function getInitialDimensionsForPlatform(
   if (type.includes("modal") || type.includes("dialog"))
     return { w: 480, h: 400 };
 
-  // Default — medium web page
-  return { w: 900, h: 700 };
+  // Default — medium web page with stable desktop baseline width
+  return { w: 960, h: 700 };
 }

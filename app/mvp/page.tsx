@@ -2,7 +2,7 @@
 "use client";
 
 import { useLayoutEffect, useRef, useState } from 'react';
-import { createShapeId, TLComponents, type Editor, Tldraw, useEditor, useValue, TLShapeId } from 'tldraw'
+import { createShapeId, TLComponents, type Editor, Tldraw, useEditor, useValue, TLShapeId, TLUiToolsContextType, DefaultToolbar, TldrawUiMenuGroup, HandToolbarItem, SelectToolbarItem, TldrawUiMenuItem, } from 'tldraw'
 import 'tldraw/tldraw.css'
 
 import { PhoneFrameShapeUtil } from '@/components/shapes/PhoneFrameShapeUtil';
@@ -11,7 +11,8 @@ import { getGenerationLayout, getInitialDimensionsForPlatform } from '@/lib/canv
 import { useCompilerWorker } from '@/hooks/useCompilerWorker';
 import { GenerationPlatform } from '@/lib/types';
 import { Button } from '@/components/ui/button';
-import { Bot, Eraser, Link2, Monitor, Pencil, Plus, Redo2, Search, Smartphone, Sparkles, SquareDashedMousePointer, Star, Undo2 } from 'lucide-react';
+import { Bot, Monitor, Plus, Smartphone, Sparkles, SquareDashed, ZoomIn, ZoomOut } from 'lucide-react';
+import SelectModel from '@/components/SelectModel';
 
 const components: TLComponents = {
     Background: () => (
@@ -74,29 +75,92 @@ const components: TLComponents = {
 
         return <canvas className="tl-grid" ref={canvas} />
     },
+    Toolbar: () => {
+        const editor = useEditor();
+
+        return (
+            <DefaultToolbar orientation={"vertical"}>
+                <TldrawUiMenuGroup id="controls">
+                    <SelectToolbarItem />
+                    <HandToolbarItem />
+                    <TldrawUiMenuItem
+                        id="orientation"
+                        onSelect={() => {
+                            editor.zoomToFit({ animation: { duration: 200 } })
+                        }}
+                        label="Fit to screen"
+                        icon={<SquareDashed className="size-4" />}
+                    />
+                    <TldrawUiMenuItem
+                        id="orientation"
+                        onSelect={() => {
+                            editor.zoomIn(editor.getViewportScreenCenter(), { animation: { duration: 120 } })
+                        }}
+                        label="Zoom in"
+                        icon={<ZoomIn className="size-4" />}
+                    />
+                    <TldrawUiMenuItem
+                        id="orientation"
+                        onSelect={() => {
+                            editor.zoomOut(editor.getViewportScreenCenter(), { animation: { duration: 200 } })
+                        }}
+                        label="Zoom out"
+                        icon={<ZoomOut className="size-4" />}
+                    />
+                </TldrawUiMenuGroup>
+            </DefaultToolbar>
+        )
+    },
+    ContextMenu: null,
+    HelpMenu: null,
+    StylePanel: null, // required
+    MenuPanel: null, // required
 }
 
 const shapeUtils = [PhoneFrameShapeUtil]  // defined OUTSIDE component — never recreate in render
 
 
 const StudioPage = () => {
-    const editorRef = useRef<Editor | null>(null)
-    const shapeIdRef = useRef<ReturnType<typeof createShapeId> | null>(null)
-    const screenBuffersRef = useRef<Map<string, string>>(new Map())
-    const frameIdsRef = useRef<Map<string, TLShapeId>>(new Map())
+    const editorRef = useRef<Editor | null>(null);
+    const shapeIdRef = useRef<ReturnType<typeof createShapeId> | null>(null);
+    const screenBuffersRef = useRef<Map<string, string>>(new Map());
+    const frameIdsRef = useRef<Map<string, TLShapeId>>(new Map());
 
-    const [prompt, setPrompt] = useState('Design a clean dashboard for analytics with cards and charts')
+    const [prompt, setPrompt] = useState('Design a clean dashboard for analytics with cards and charts');
     // const [prompt, setPrompt] = useState('Why is the sky blue?')
-    const [isGenerating, setIsGenerating] = useState(false)
-    const [selectedPlatform, setSelectedPlatform] = useState<GenerationPlatform>('web')
+    const [isGenerating, setIsGenerating] = useState(false);
+    const [selectedPlatform, setSelectedPlatform] = useState<GenerationPlatform>('web');
+    const [model, setModel] = useState<string>("llama3.2-vision:11b");
+
+
+    const { compile } = useCompilerWorker(({ screenName, html, error }) => {
+        const editor = editorRef.current
+        const id = frameIdsRef.current.get(screenName)
+        if (!editor || !id) return
+
+        editor.updateShape({
+            id,
+            type: 'phone-frame',
+            props: {
+                state: error ? 'error' : 'done',
+                srcdoc: html ?? '',
+            }
+        })
+    });
 
     const quickPrompts = [
         'UGC agency landing page with hero, social proof, pricing, and conversion-focused contact section',
         'Creative portfolio + service highlights with strong CTA hierarchy',
         'Case-study first website with testimonial and trust metrics blocks',
         'Modern brand site with cinematic hero and performance stats strip',
-    ]
-
+    ];
+    const models = [
+        "llama3.1:8b",
+        "mistral:7b",
+        "gpt-oss:120b-cloud",
+        "llama3.2-vision:11b",
+        "deepseek-v3.1:671b-cloud",
+    ];
     const handleGenerate = async () => {
         if (!prompt.trim()) return
 
@@ -152,21 +216,6 @@ const StudioPage = () => {
             setIsGenerating(false)
         }
     }
-
-    const { compile } = useCompilerWorker(({ screenName, html, error }) => {
-        const editor = editorRef.current
-        const id = frameIdsRef.current.get(screenName)
-        if (!editor || !id) return
-
-        editor.updateShape({
-            id,
-            type: 'phone-frame',
-            props: {
-                state: error ? 'error' : 'done',
-                srcdoc: html ?? '',
-            }
-        })
-    })
 
     // 2. handleEvent — screen_done triggers compile
     function handleEvent(event: any) {
@@ -275,8 +324,20 @@ const StudioPage = () => {
 
     return (
         <div className="relative h-screen w-full overflow-hidden bg-[#0d1017] text-zinc-100">
+            {/* Tldraw Infinite Canvas */}
             <div className="absolute inset-0">
-                <Tldraw hideUi shapeUtils={shapeUtils} components={components} onMount={handleMount} />
+                <Tldraw
+                    shapeUtils={shapeUtils}
+                    components={components}
+                    onMount={handleMount}
+                    overrides={{
+                        tools: (_editor, tools: TLUiToolsContextType) => {
+                            // Remove the text tool
+                            delete tools.text
+                            delete tools.stickyNote
+                            return tools
+                        },
+                    }} />
             </div>
 
             <div className="pointer-events-none absolute inset-0">
@@ -299,17 +360,6 @@ const StudioPage = () => {
                     ))}
                 </div>
 
-                <div className="pointer-events-auto absolute right-4 top-1/2 flex -translate-y-1/2 flex-col gap-2 rounded-2xl border border-zinc-700/80 bg-zinc-950/90 p-2 backdrop-blur-md">
-                    {[SquareDashedMousePointer, Pencil, Link2, Eraser, Search, Undo2, Redo2, Star].map((Icon, index) => (
-                        <button
-                            key={index}
-                            type="button"
-                            className="flex size-9 items-center justify-center rounded-lg border border-zinc-800 bg-zinc-900 text-zinc-300 transition hover:border-zinc-600 hover:text-white"
-                        >
-                            <Icon className="size-4" />
-                        </button>
-                    ))}
-                </div>
 
                 <div className="pointer-events-auto absolute bottom-4 left-1/2 w-[min(980px,calc(100%-1.5rem))] -translate-x-1/2 rounded-3xl border border-zinc-700/80 bg-zinc-950/95 p-3 shadow-2xl shadow-black/40 backdrop-blur-md">
                     <div className="mb-2 flex items-center justify-between gap-3">
@@ -317,9 +367,9 @@ const StudioPage = () => {
                             <Button
                                 type="button"
                                 size="sm"
-                                variant={selectedPlatform === 'web' ? 'default' : 'ghost'}
+                                variant={selectedPlatform === 'web' ? 'outline' : 'ghost'}
                                 onClick={() => setSelectedPlatform('web')}
-                                className="h-8 rounded-lg"
+                                className={`h-8 rounded-lg ${selectedPlatform === 'web' ? 'text-black' : ''}`}
                             >
                                 <Monitor className="size-4" />
                                 Web
@@ -327,9 +377,9 @@ const StudioPage = () => {
                             <Button
                                 type="button"
                                 size="sm"
-                                variant={selectedPlatform === 'mobile' ? 'default' : 'ghost'}
+                                variant={selectedPlatform === 'mobile' ? 'outline' : 'ghost'}
                                 onClick={() => setSelectedPlatform('mobile')}
-                                className="h-8 rounded-lg"
+                                className={`h-8 rounded-lg ${selectedPlatform === 'mobile' ? 'text-black' : ''}`}
                             >
                                 <Smartphone className="size-4" />
                                 Mobile
@@ -339,12 +389,8 @@ const StudioPage = () => {
                     </div>
 
                     <div className="flex items-end gap-2">
-                        <button
-                            type="button"
-                            className="flex size-11 shrink-0 items-center justify-center rounded-2xl border border-zinc-800 bg-zinc-900 text-zinc-300 transition hover:border-zinc-600 hover:text-zinc-100"
-                        >
-                            <Plus className="size-5" />
-                        </button>
+                        <SelectModel list={models}
+                            setModel={setModel} model={model} />
 
                         <textarea
                             value={prompt}
