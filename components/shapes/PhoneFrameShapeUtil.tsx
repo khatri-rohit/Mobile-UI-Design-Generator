@@ -129,7 +129,6 @@ function PhoneFrameShapeComponent({ shape }: { shape: PhoneFrameShape }) {
 
   useEffect(() => {
     if (state !== "done" || !content || !iframeRef.current) return;
-    console.log(content);
     (async () => {
       const nextSandbox = {
         files: buildSandpackFiles(content),
@@ -147,7 +146,9 @@ function PhoneFrameShapeComponent({ shape }: { shape: PhoneFrameShape }) {
         showErrorScreen: true,
         showLoadingScreen: true,
         externalResources: [
-          "https://cdn.tailwindcss.com?plugins=forms,typography,aspect-ratio,line-clamp,container-queries",
+          // Deliberately using Tailwind CDN only for Sandpack development/prototyping previews.
+          // This trades production guidance for reliable in-iframe preview rendering.
+          "https://cdn.tailwindcss.com?plugins=forms,typography,aspect-ratio,container-queries",
         ],
       });
 

@@ -1,3 +1,5 @@
+import * as ts from "typescript";
+
 const ALLOWED_IMPORT_PACKAGES = new Set([
   "react",
   "react-dom",
@@ -11,6 +13,11 @@ const CODE_START_RE =
 
 const LOCAL_IMPORT_RE =
   /^\s*import\s+(?:[^'\"]*\s+from\s+)?['\"](\.\/|\.\.\/|\/|@\/)[^'\"]+['\"]\s*;?\s*$/;
+
+const GENERATED_SCREEN_DEFINITION_RE =
+  /(?:\bfunction\s+GeneratedScreen\b|\bclass\s+GeneratedScreen\b|\b(?:const|let|var)\s+GeneratedScreen\b)/;
+
+const DEFAULT_EXPORT_RE = /^\s*export\s+default\b/m;
 
 function basePackageFromImport(path: string): string {
   if (path.startsWith("@")) {
@@ -27,32 +34,90 @@ function stripLeadingNonCode(text: string): string {
 }
 
 function sanitizeImports(text: string): string {
-  const lines = text.split("\n");
+  const sourceFile = ts.createSourceFile(
+    "generated-screen.tsx",
+    text,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TSX,
+  );
 
-  const cleaned = lines.filter((line) => {
-    if (LOCAL_IMPORT_RE.test(line)) return false;
+  const forbiddenImports: ts.ImportDeclaration[] = [];
+  const removedBindings = new Set<string>();
 
-    const importMatch = line.match(
-      /^\s*import\s+(?:[^'\"]*\s+from\s+)?['\"]([^'\"]+)['\"]\s*;?\s*$/,
-    );
+  for (const statement of sourceFile.statements) {
+    if (!ts.isImportDeclaration(statement)) continue;
 
-    if (!importMatch) return true;
+    const moduleSpecifier = statement.moduleSpecifier;
+    if (!ts.isStringLiteral(moduleSpecifier)) continue;
 
-    const importPath = importMatch[1];
-    if (
-      importPath.startsWith("./") ||
-      importPath.startsWith("../") ||
-      importPath.startsWith("/") ||
-      importPath.startsWith("@/")
-    ) {
-      return false;
+    const importPath = moduleSpecifier.text;
+    const importText = statement.getText(sourceFile);
+
+    const isLocalImport = LOCAL_IMPORT_RE.test(importText);
+    const pkg = basePackageFromImport(importPath);
+    const isAllowedPackage = ALLOWED_IMPORT_PACKAGES.has(pkg);
+
+    if (!isLocalImport && isAllowedPackage) continue;
+
+    forbiddenImports.push(statement);
+
+    const importClause = statement.importClause;
+    if (!importClause) continue;
+
+    if (importClause.name) {
+      removedBindings.add(importClause.name.text);
     }
 
-    const pkg = basePackageFromImport(importPath);
-    return ALLOWED_IMPORT_PACKAGES.has(pkg);
-  });
+    const namedBindings = importClause.namedBindings;
+    if (!namedBindings) continue;
 
-  return cleaned.join("\n");
+    if (ts.isNamespaceImport(namedBindings)) {
+      removedBindings.add(namedBindings.name.text);
+      continue;
+    }
+
+    for (const element of namedBindings.elements) {
+      removedBindings.add(element.name.text);
+    }
+  }
+
+  if (forbiddenImports.length === 0) return text;
+
+  let referencesRemovedBindings = false;
+
+  const visit = (node: ts.Node) => {
+    if (referencesRemovedBindings) return;
+
+    if (ts.isImportDeclaration(node)) return;
+
+    if (ts.isIdentifier(node) && removedBindings.has(node.text)) {
+      referencesRemovedBindings = true;
+      return;
+    }
+
+    if (
+      (ts.isJsxOpeningElement(node) ||
+        ts.isJsxSelfClosingElement(node) ||
+        ts.isJsxClosingElement(node)) &&
+      ts.isIdentifier(node.tagName) &&
+      removedBindings.has(node.tagName.text)
+    ) {
+      referencesRemovedBindings = true;
+      return;
+    }
+
+    ts.forEachChild(node, visit);
+  };
+
+  visit(sourceFile);
+
+  if (forbiddenImports.length > 0 || referencesRemovedBindings) {
+    // Conservative sentinel: avoid returning partially broken TSX after import removal.
+    return "";
+  }
+
+  return text;
 }
 
 function stripAnimationTokens(text: string): string {
@@ -67,11 +132,9 @@ function stripAnimationTokens(text: string): string {
 }
 
 function ensureDefaultExport(text: string): string {
-  if (/export\s+default\s+GeneratedScreen\s*;?/.test(text)) return text;
+  if (DEFAULT_EXPORT_RE.test(text)) return text;
 
-  if (
-    /(?:const\s+GeneratedScreen\s*=|function\s+GeneratedScreen\s*\()/.test(text)
-  ) {
+  if (GENERATED_SCREEN_DEFINITION_RE.test(text)) {
     return `${text.trim()}\n\nexport default GeneratedScreen;\n`;
   }
 
@@ -111,9 +174,7 @@ export function sanitizeGeneratedCode(raw: string): string {
   next = ensureDefaultExport(next).trim();
 
   const hasGeneratedScreen =
-    /(?:const\s+GeneratedScreen\s*=|function\s+GeneratedScreen\s*\()/.test(
-      next,
-    ) && /export\s+default\s+GeneratedScreen\s*;?/.test(next);
+    GENERATED_SCREEN_DEFINITION_RE.test(next) && DEFAULT_EXPORT_RE.test(next);
 
   if (!hasGeneratedScreen || next.length < 40) {
     return fallbackStaticScreen();
