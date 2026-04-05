@@ -174,15 +174,16 @@ const StudioPage = () => {
   >(null);
   const [selectedPlatform, setSelectedPlatform] =
     useState<GenerationPlatform>("web");
-  const [model, setModel] = useState<string>("llama3.2-vision:11b");
+  const [model, setModel] = useState<string>("gemma4:31b-cloud");
 
-  const quickPrompts = [
-    "UGC agency landing page with hero, social proof, pricing, and conversion-focused contact section",
-    "Creative portfolio + service highlights with strong CTA hierarchy",
-    "Case-study first website with testimonial and trust metrics blocks",
-    "Modern brand site with cinematic hero and performance stats strip",
-  ];
+  // const quickPrompts = [
+  //   "UGC agency landing page with hero, social proof, pricing, and conversion-focused contact section",
+  //   "Creative portfolio + service highlights with strong CTA hierarchy",
+  //   "Case-study first website with testimonial and trust metrics blocks",
+  //   "Modern brand site with cinematic hero and performance stats strip",
+  // ];
   const models = [
+    "gemma4:31b-cloud",
     "llama3.1:8b",
     "mistral:7b",
     "gpt-oss:120b-cloud",

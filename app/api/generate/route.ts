@@ -26,7 +26,7 @@ const STAGE2_MODELS = [
   "deepseek-v3.1:671b-cloud",
 ];
 const STAGE3_MODELS = [
-  // "minimax-m2.7:cloud",
+    "gemma4:31b-cloud",
   "deepseek-v3.1:671b-cloud",
   // "qwen3.5:9b",
   "gpt-oss:120b-cloud",

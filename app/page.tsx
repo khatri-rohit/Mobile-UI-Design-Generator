@@ -1,14 +1,12 @@
-"use client";
-
+import { auth } from "@clerk/nextjs/server";
 import Dashboard from "@/components/dashboard/Dashboard";
 import LandingPage from "@/components/landing/LandingPage";
 
-export default function Home() {
-  const isAuthenticated = false; // Replace with actual authentication logic
+export default async function Home() {
+  // const { isAuthenticated } = await auth();
+  const isAuthenticated = true; // TODO: Re-enable auth check once we have a proper auth flow in place
 
-  if (isAuthenticated) {
-    return <Dashboard />; // Replace with actual Dashboard component
-  }
+  if (!isAuthenticated) return <LandingPage />;
 
-  return <LandingPage />;
+  return <Dashboard />;
 }
