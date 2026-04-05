@@ -8,18 +8,81 @@ datasource db {
 }
 
 model User {
-  id        String   @id @default(uuid())
-  email     String   @unique
-  provider  String
-  name      String
-  password  String
-  role      Role     @default(USER)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+    id               String           @id @default(uuid())
+    clerkUserId      String?          @unique
+    email            String           @unique
+    name             String
+    provider         Provider         @default(EMAIL)
+    role             Role             @default(USER)
+    organizationId   String?
+    organizationSlug String?
+    isActive         Boolean          @default(true)
+    sessions         AppSession[]
+    auditEvents      AuthAuditEvent[]
+    createdAt        DateTime         @default(now())
+    updatedAt        DateTime         @updatedAt
+}
+
+model AppSession {
+    id             String        @id @default(cuid())
+    userId         String
+    user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+    clerkSessionId String        @unique
+    status         SessionStatus @default(ACTIVE)
+    issuedAt       DateTime
+    expiresAt      DateTime?
+    lastActiveAt   DateTime?
+    ipAddress      String?
+    userAgent      String?
+    createdAt      DateTime      @default(now())
+    updatedAt      DateTime      @updatedAt
+
+    @@index([userId, createdAt])
+    @@index([status])
+}
+
+model AuthAuditEvent {
+    id             String           @id @default(cuid())
+    userId         String?
+    user           User?            @relation(fields: [userId], references: [id], onDelete: SetNull)
+    clerkUserId    String?
+    clerkSessionId String?
+    eventType      String
+    eventSource    AuditEventSource @default(REQUEST)
+    metadata       Json?
+    createdAt      DateTime         @default(now())
+
+    @@index([userId, createdAt])
+    @@index([clerkUserId, createdAt])
+    @@index([clerkSessionId, createdAt])
+}
+
+model ClerkWebhookEvent {
+    id         String   @id
+    eventType  String
+    receivedAt DateTime @default(now())
 }
 
 enum Role {
-  USER
-  DEVELOPER
-  ADMIN
+    USER
+    DEVELOPER
+    ADMIN
+}
+
+enum Provider {
+    GOOGLE
+    GITHUB
+    EMAIL
+}
+
+enum SessionStatus {
+    ACTIVE
+    ENDED
+    REVOKED
+}
+
+enum AuditEventSource {
+    REQUEST
+    WEBHOOK
+    SYSTEM
 }
