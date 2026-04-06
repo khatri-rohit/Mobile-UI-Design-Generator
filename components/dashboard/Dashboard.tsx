@@ -23,7 +23,6 @@ import {
   Settings,
   Smartphone,
   TerminalSquare,
-  UserRound,
   X,
 } from "lucide-react";
 
@@ -38,6 +37,7 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
+import { useAuth, UserButton } from "@clerk/nextjs";
 
 gsap.registerPlugin(useGSAP);
 
@@ -112,6 +112,8 @@ const quickActions: Array<{
 ];
 
 const Dashboard = () => {
+  const { signOut } = useAuth();
+
   const router = useRouter();
   const rootRef = useRef<HTMLDivElement | null>(null);
   const commandInputRef = useRef<HTMLInputElement | null>(null);
@@ -149,6 +151,14 @@ const Dashboard = () => {
     });
 
     router.push(`/studio?${params.toString()}`);
+  };
+
+  const handleSettingsSelect = async (value: string) => {
+    if (value === "logout") {
+      // Implement logout logic here
+      await signOut();
+      router.push("/");
+    }
   };
 
   useGSAP(
@@ -299,7 +309,10 @@ const Dashboard = () => {
     >
       <header className="logic-topbar fixed top-0 z-40 flex h-14 w-full items-center justify-between border-b border-border bg-background/95 px-6 backdrop-blur-[1px]">
         <div className="flex items-center gap-4">
-          <Link href="/" className="text-xl font-black tracking-[0.35em] text-primary">
+          <Link
+            href="/"
+            className="text-xl font-black tracking-[0.35em] text-primary"
+          >
             LOGIC
           </Link>
           <div className="h-4 w-px bg-border" />
@@ -319,7 +332,7 @@ const Dashboard = () => {
             size="icon-sm"
             aria-label="Open account panel"
           >
-            <UserRound />
+            <UserButton appearance={"model"} />
           </Button>
           <Button variant="ghost" size="icon-sm" aria-label="Open more options">
             <MoreVertical />
@@ -402,20 +415,51 @@ const Dashboard = () => {
             </div>
 
             <div className="mt-auto border-t border-border px-4 pt-6">
-              <button
-                type="button"
-                className="flex w-full items-center gap-3 px-4 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-              >
-                <Settings className="size-4" />
-                <span
+              <Select value="" onValueChange={handleSettingsSelect}>
+                <SelectTrigger
                   className={cn(
-                    "text-[11px] tracking-[0.16em] uppercase",
+                    "h-9 w-full text-[10px] uppercase tracking-[0.16em] border-border bg-card/70 text-muted-foreground hover:text-foreground transition-colors",
                     mono.className,
                   )}
                 >
-                  Settings
-                </span>
-              </button>
+                  <Settings className="size-4" data-icon="inline-start" />
+                  <SelectValue placeholder="Settings" />
+                </SelectTrigger>
+
+                <SelectContent
+                  position="popper"
+                  side="top"
+                  align="end"
+                  sideOffset={8}
+                  className={cn(
+                    "dark mt-0! max-w-55! rounded-none! border! border-border! bg-background! p-0! text-foreground! ring-0! shadow-[0_0_0_1px_rgba(255,255,255,0.06),0_16px_32px_-18px_rgba(0,0,0,0.9)]!",
+                    mono.className,
+                  )}
+                >
+                  <SelectGroup className="scroll-my-0! p-0!">
+                    {[
+                      { value: "profile", label: "Profile" },
+                      { value: "settings", label: "Settings" },
+                      { value: "support", label: "Support" },
+                      { value: "logout", label: "Logout" },
+                    ].map((item) => (
+                      <SelectItem
+                        key={item.value}
+                        value={item.value}
+                        className={cn(
+                          "relative! h-9! cursor-pointer! rounded-none! border-b! border-border! px-3! py-0! text-[10px]! uppercase! tracking-[0.16em]! text-muted-foreground! outline-none!",
+                          "last:border-b-0! data-highlighted:bg-muted! data-highlighted:text-foreground! data-[state=checked]:text-foreground!",
+                          mono.className,
+                          item.value === "logout" &&
+                            "text-destructive! data-highlighted:bg-destructive/10! data-highlighted:text-destructive!",
+                        )}
+                      >
+                        {item.label}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
               <button
                 type="button"
                 className="mt-1 flex w-full items-center gap-3 px-4 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"

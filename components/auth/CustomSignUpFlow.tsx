@@ -13,10 +13,7 @@ import { cn } from "@/lib/utils";
 //   fields?: Record<string, { message?: string } | Array<{ message?: string }>>;
 // };
 
-function getFieldError(
-  errors: any,
-  fieldName: string,
-) {
+function getFieldError(errors: any, fieldName: string) {
   const fieldError = errors?.fields?.[fieldName];
 
   if (!fieldError) {
@@ -66,7 +63,7 @@ export default function CustomSignUpFlow() {
           return;
         }
 
-        const url = decorateUrl("/studio");
+        const url = decorateUrl("/");
         if (url.startsWith("http")) {
           window.location.href = url;
           return;
