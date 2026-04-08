@@ -1,9 +1,9 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useSignIn } from "@clerk/nextjs";
 
 import { cn } from "@/lib/utils";
@@ -30,16 +30,39 @@ function getFieldError(errors: any, fieldName: string) {
   return fieldError.message ?? "";
 }
 
+type OAuthProvider = "google" | "github";
+
+const OAUTH_STRATEGY_BY_PROVIDER: Record<
+  OAuthProvider,
+  "oauth_google" | "oauth_github"
+> = {
+  google: "oauth_google",
+  github: "oauth_github",
+};
+
+function getOAuthProviderFromParam(value: string | null): OAuthProvider | null {
+  if (value === "google" || value === "github") {
+    return value;
+  }
+
+  return null;
+}
+
 export default function CustomSignInFlow() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { signIn, errors, fetchStatus } = useSignIn();
+  const oauthAutoStartedRef = useRef(false);
 
   const [emailAddress, setEmailAddress] = useState("");
   const [password, setPassword] = useState("");
   const [code, setCode] = useState("");
   const [statusMessage, setStatusMessage] = useState("");
+  const [oauthLoadingProvider, setOauthLoadingProvider] =
+    useState<OAuthProvider | null>(null);
 
   const isLoading = fetchStatus === "fetching";
+  const isAnyAuthFlowLoading = isLoading || oauthLoadingProvider !== null;
   const typedErrors = errors;
   const globalMessages = useMemo(
     () =>
@@ -50,6 +73,61 @@ export default function CustomSignInFlow() {
   );
 
   const needsClientTrust = signIn.status === "needs_client_trust";
+  const preselectedOAuthProvider = useMemo(
+    () => getOAuthProviderFromParam(searchParams.get("provider")),
+    [searchParams],
+  );
+
+  const startOAuthSignIn = async (provider: OAuthProvider) => {
+    setStatusMessage("");
+    setOauthLoadingProvider(provider);
+
+    try {
+      const { error } = await signIn.sso({
+        strategy: OAUTH_STRATEGY_BY_PROVIDER[provider],
+        redirectUrl: "/",
+        redirectCallbackUrl: "/sign-in/sso-callback",
+      });
+
+      if (!error) {
+        return;
+      }
+
+      console.error("Failed to start OAuth sign-in", error);
+      setStatusMessage(
+        `Unable to start ${provider === "google" ? "Google" : "GitHub"} sign-in. Please retry.`,
+      );
+      setOauthLoadingProvider(null);
+    } catch (error) {
+      console.error("Failed to start OAuth sign-in", error);
+      setStatusMessage(
+        `Unable to start ${provider === "google" ? "Google" : "GitHub"} sign-in. Please retry.`,
+      );
+      setOauthLoadingProvider(null);
+    }
+  };
+
+  useEffect(() => {
+    if (!preselectedOAuthProvider || oauthAutoStartedRef.current) {
+      return;
+    }
+
+    oauthAutoStartedRef.current = true;
+    void signIn
+      .sso({
+        strategy: OAUTH_STRATEGY_BY_PROVIDER[preselectedOAuthProvider],
+        redirectUrl: "/",
+        redirectCallbackUrl: "/sign-in/sso-callback",
+      })
+      .then(({ error }) => {
+        if (error) {
+          console.error("Failed to auto-start OAuth sign-in", error);
+        }
+      })
+      .catch((error: unknown) => {
+        console.error("Failed to auto-start OAuth sign-in", error);
+      });
+  }, [preselectedOAuthProvider, signIn]);
 
   const finishSignIn = async () => {
     await signIn.finalize({
@@ -160,19 +238,20 @@ export default function CustomSignInFlow() {
 
           <button
             type="submit"
-            disabled={isLoading}
+            disabled={isAnyAuthFlowLoading}
             className={cn(
               "h-11 w-full border border-white bg-white text-[11px] font-semibold uppercase tracking-[0.18em] text-black transition-colors",
               "hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-60",
             )}
           >
-            {isLoading ? "Verifying..." : "Verify and continue"}
+            {isAnyAuthFlowLoading ? "Verifying..." : "Verify and continue"}
           </button>
 
           <div className="flex flex-wrap items-center gap-2 text-xs text-zinc-400">
             <button
               type="button"
               onClick={() => signIn.mfa.sendEmailCode()}
+              disabled={isAnyAuthFlowLoading}
               className="border border-white/12 px-3 py-2 uppercase tracking-[0.14em] transition-colors hover:border-white/30 hover:text-white"
             >
               Resend code
@@ -184,6 +263,7 @@ export default function CustomSignInFlow() {
                 setCode("");
                 setStatusMessage("");
               }}
+              disabled={isAnyAuthFlowLoading}
               className="border border-white/12 px-3 py-2 uppercase tracking-[0.14em] transition-colors hover:border-white/30 hover:text-white"
             >
               Start over
@@ -192,6 +272,48 @@ export default function CustomSignInFlow() {
         </form>
       ) : (
         <form className="space-y-4" onSubmit={handleSignIn}>
+          <div className="space-y-3">
+            <p className="text-[10px] uppercase tracking-[0.2em] text-zinc-400">
+              Continue with provider
+            </p>
+
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <button
+                type="button"
+                onClick={() => {
+                  void startOAuthSignIn("google");
+                }}
+                disabled={isAnyAuthFlowLoading}
+                className={cn(
+                  "h-11 border border-white/15 bg-black px-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-100 transition-colors",
+                  "hover:border-white/35 hover:bg-zinc-900 disabled:cursor-not-allowed disabled:opacity-60",
+                )}
+              >
+                {oauthLoadingProvider === "google" ? "Connecting..." : "Google"}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  void startOAuthSignIn("github");
+                }}
+                disabled={isAnyAuthFlowLoading}
+                className={cn(
+                  "h-11 border border-white/15 bg-black px-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-100 transition-colors",
+                  "hover:border-white/35 hover:bg-zinc-900 disabled:cursor-not-allowed disabled:opacity-60",
+                )}
+              >
+                {oauthLoadingProvider === "github" ? "Connecting..." : "GitHub"}
+              </button>
+            </div>
+
+            <div className="flex items-center gap-3 text-[10px] uppercase tracking-[0.16em] text-zinc-500">
+              <span className="h-px flex-1 bg-white/15" />
+              <span>Or continue with email</span>
+              <span className="h-px flex-1 bg-white/15" />
+            </div>
+          </div>
+
           <div className="space-y-2">
             <label
               htmlFor="signin-email"
@@ -248,13 +370,13 @@ export default function CustomSignInFlow() {
 
           <button
             type="submit"
-            disabled={isLoading}
+            disabled={isAnyAuthFlowLoading}
             className={cn(
               "h-11 w-full border border-white bg-white text-[11px] font-semibold uppercase tracking-[0.18em] text-black transition-colors",
               "hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-60",
             )}
           >
-            {isLoading ? "Signing in..." : "Sign in"}
+            {isAnyAuthFlowLoading ? "Signing in..." : "Sign in"}
           </button>
         </form>
       )}

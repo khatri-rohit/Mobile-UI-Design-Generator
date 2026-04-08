@@ -18,7 +18,6 @@ import {
   Menu,
   Mic,
   Monitor,
-  MoreVertical,
   Plus,
   Settings,
   Smartphone,
@@ -125,6 +124,8 @@ const Dashboard = () => {
   const [command, setCommand] = useState("");
   const [selectedModel, setSelectedModel] = useState("flash");
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isSigningOut, setIsSigningOut] = useState(false);
+  const [logoutErrorMessage, setLogoutErrorMessage] = useState("");
 
   const canSubmit = command.trim().length > 0;
 
@@ -153,11 +154,41 @@ const Dashboard = () => {
     router.push(`/studio?${params.toString()}`);
   };
 
+  const recordLogoutAudit = async () => {
+    try {
+      const response = await fetch("/api/auth/logout-audit", {
+        method: "POST",
+      });
+
+      if (!response.ok) {
+        console.warn("Logout audit request was not accepted", {
+          status: response.status,
+        });
+      }
+    } catch (error) {
+      console.warn("Logout audit request failed", error);
+    }
+  };
+
   const handleSettingsSelect = async (value: string) => {
-    if (value === "logout") {
-      // Implement logout logic here
+    if (value !== "logout" || isSigningOut) {
+      return;
+    }
+
+    setLogoutErrorMessage("");
+    setIsSigningOut(true);
+
+    await recordLogoutAudit();
+
+    try {
       await signOut();
-      router.push("/");
+      router.replace("/");
+      router.refresh();
+    } catch (error) {
+      console.error("Sign out failed", error);
+      setLogoutErrorMessage("Sign out failed. Please try again.");
+    } finally {
+      setIsSigningOut(false);
     }
   };
 
@@ -332,10 +363,7 @@ const Dashboard = () => {
             size="icon-sm"
             aria-label="Open account panel"
           >
-            <UserButton appearance={"model"} />
-          </Button>
-          <Button variant="ghost" size="icon-sm" aria-label="Open more options">
-            <MoreVertical />
+            <UserButton />
           </Button>
         </div>
       </header>
@@ -441,11 +469,16 @@ const Dashboard = () => {
                       { value: "profile", label: "Profile" },
                       { value: "settings", label: "Settings" },
                       { value: "support", label: "Support" },
-                      { value: "logout", label: "Logout" },
+                      {
+                        value: "logout",
+                        label: isSigningOut ? "Signing out..." : "Logout",
+                        disabled: isSigningOut,
+                      },
                     ].map((item) => (
                       <SelectItem
                         key={item.value}
                         value={item.value}
+                        disabled={item.disabled}
                         className={cn(
                           "relative! h-9! cursor-pointer! rounded-none! border-b! border-border! px-3! py-0! text-[10px]! uppercase! tracking-[0.16em]! text-muted-foreground! outline-none!",
                           "last:border-b-0! data-highlighted:bg-muted! data-highlighted:text-foreground! data-[state=checked]:text-foreground!",
@@ -474,6 +507,16 @@ const Dashboard = () => {
                   Support
                 </span>
               </button>
+              {logoutErrorMessage ? (
+                <p
+                  className={cn(
+                    "mt-2 border border-destructive/50 bg-destructive/10 px-3 py-2 text-[10px] uppercase tracking-[0.16em] text-destructive",
+                    mono.className,
+                  )}
+                >
+                  {logoutErrorMessage}
+                </p>
+              ) : null}
             </div>
           </div>
         </aside>

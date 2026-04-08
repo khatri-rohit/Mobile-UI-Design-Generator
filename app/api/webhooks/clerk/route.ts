@@ -195,6 +195,7 @@ export async function POST(req: NextRequest) {
       req.headers.get("svix-id") ??
       `fallback-${Date.now()}-${Math.random().toString(16).slice(2)}`;
     console.log(webhookMessageId);
+    console.log(evt.data);
     const duplicate = await prisma.clerkWebhookEvent.findUnique({
       where: {
         id: webhookMessageId,

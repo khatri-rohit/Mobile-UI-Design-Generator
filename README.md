@@ -55,6 +55,31 @@ The platform is currently in its Phase 1 MVP status, focusing on the core genera
    ```
    The application will be accessible at `http://localhost:3000/`. You can proceed to `http://localhost:3000/studio` (or the root page) to access the canvas.
 
+## Authentication and OAuth
+
+Authentication is powered by Clerk with custom UI flows in `components/auth`.
+
+- Email/password sign-in and sign-up are handled in custom forms.
+- Google and GitHub OAuth are available inside custom sign-in and sign-up forms.
+- Landing provider CTAs route through sign-in preselection:
+  - `/sign-in?provider=google`
+  - `/sign-in?provider=github`
+- OAuth callback is handled at `/sign-in/sso-callback`.
+
+Required auth environment variables:
+
+```env
+CLERK_PUBLISHABLE_KEY=
+CLERK_SECRET_KEY=
+CLERK_WEBHOOK_SIGNING_SECRET=
+```
+
+Optional compatibility key:
+
+```env
+CLERK_WEBHOOK_SECRET=
+```
+
 ## Prisma + Supabase (Prisma ORM v7)
 
 This project is configured for Prisma ORM v7 with Supabase Postgres and separates runtime database access from Prisma CLI migrations.

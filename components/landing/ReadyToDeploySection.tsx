@@ -2,12 +2,12 @@ import Link from "next/link";
 
 export function ReadyToDeploySection() {
   return (
-    <section className="scroll-item relative flex min-h-[38rem] flex-col items-center justify-center bg-white p-12">
+    <section className="scroll-item relative flex min-h-152 flex-col items-center justify-center bg-white p-12">
       <div className="space-y-6 text-center">
         <h2 className="text-[clamp(2.5rem,8vw,5rem)] font-black tracking-tighter">
           READY TO DEPLOY?
         </h2>
-        <p className="mono text-base text-[var(--logic-muted)]">
+        <p className="mono text-base text-(--logic-muted)">
           INITIALIZE_SESSION_REQUESTED
         </p>
 
@@ -43,14 +43,14 @@ export function ReadyToDeploySection() {
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Link
-              href="/studio?auth=google"
-              className="mono inline-flex min-h-11 items-center justify-center gap-2 border border-[color:var(--logic-border)] p-2 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2 focus-visible:ring-offset-white"
+              href="/sign-in?provider=google"
+              className="mono inline-flex min-h-11 items-center justify-center gap-2 border border-(--logic-border) p-2 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2 focus-visible:ring-offset-white"
             >
               GOOGLE_AUTH
             </Link>
             <Link
-              href="/studio?auth=github"
-              className="mono inline-flex min-h-11 items-center justify-center gap-2 border border-[color:var(--logic-border)] p-2 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2 focus-visible:ring-offset-white"
+              href="/sign-in?provider=github"
+              className="mono inline-flex min-h-11 items-center justify-center gap-2 border border-(--logic-border) p-2 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2 focus-visible:ring-offset-white"
             >
               GITHUB_AUTH
             </Link>
