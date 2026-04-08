@@ -19,7 +19,6 @@ import {
   Mic,
   Monitor,
   Plus,
-  Settings,
   Smartphone,
   TerminalSquare,
   X,
@@ -36,7 +35,11 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
-import { useAuth, UserButton } from "@clerk/nextjs";
+import { UserButton } from "@clerk/nextjs";
+import {
+  clerkUserButtonAppearance,
+  clerkUserProfileAppearance,
+} from "@/lib/clerkAppearance";
 
 gsap.registerPlugin(useGSAP);
 
@@ -111,8 +114,6 @@ const quickActions: Array<{
 ];
 
 const Dashboard = () => {
-  const { signOut } = useAuth();
-
   const router = useRouter();
   const rootRef = useRef<HTMLDivElement | null>(null);
   const commandInputRef = useRef<HTMLInputElement | null>(null);
@@ -124,8 +125,6 @@ const Dashboard = () => {
   const [command, setCommand] = useState("");
   const [selectedModel, setSelectedModel] = useState("flash");
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [isSigningOut, setIsSigningOut] = useState(false);
-  const [logoutErrorMessage, setLogoutErrorMessage] = useState("");
 
   const canSubmit = command.trim().length > 0;
 
@@ -154,43 +153,43 @@ const Dashboard = () => {
     router.push(`/studio?${params.toString()}`);
   };
 
-  const recordLogoutAudit = async () => {
-    try {
-      const response = await fetch("/api/auth/logout-audit", {
-        method: "POST",
-      });
+  // const recordLogoutAudit = async () => {
+  // try {
+  //   const response = await fetch("/api/auth/logout-audit", {
+  //     method: "POST",
+  //   });
 
-      if (!response.ok) {
-        console.warn("Logout audit request was not accepted", {
-          status: response.status,
-        });
-      }
-    } catch (error) {
-      console.warn("Logout audit request failed", error);
-    }
-  };
+  //   if (!response.ok) {
+  //     console.warn("Logout audit request was not accepted", {
+  //       status: response.status,
+  //     });
+  //   }
+  // } catch (error) {
+  //   console.warn("Logout audit request failed", error);
+  // }
+  // };
 
-  const handleSettingsSelect = async (value: string) => {
-    if (value !== "logout" || isSigningOut) {
-      return;
-    }
+  // const handleSettingsSelect = async (value: string) => {
+  //   if (value !== "logout" || isSigningOut) {
+  //     return;
+  //   }
 
-    setLogoutErrorMessage("");
-    setIsSigningOut(true);
+  //   setLogoutErrorMessage("");
+  //   setIsSigningOut(true);
 
-    await recordLogoutAudit();
+  //   await recordLogoutAudit();
 
-    try {
-      await signOut();
-      router.replace("/");
-      router.refresh();
-    } catch (error) {
-      console.error("Sign out failed", error);
-      setLogoutErrorMessage("Sign out failed. Please try again.");
-    } finally {
-      setIsSigningOut(false);
-    }
-  };
+  //   try {
+  //     await signOut();
+  //     router.replace("/");
+  //     router.refresh();
+  //   } catch (error) {
+  //     console.error("Sign out failed", error);
+  //     setLogoutErrorMessage("Sign out failed. Please try again.");
+  //   } finally {
+  //     setIsSigningOut(false);
+  //   }
+  // };
 
   useGSAP(
     () => {
@@ -358,7 +357,11 @@ const Dashboard = () => {
         </div>
 
         <div className="flex items-center gap-2">
-          <UserButton>
+          <UserButton
+            appearance={clerkUserButtonAppearance}
+            userProfileMode="modal"
+            userProfileProps={{ appearance: clerkUserProfileAppearance }}
+          >
             <UserButton.MenuItems>
               <UserButton.Action label="manageAccount" />
             </UserButton.MenuItems>
@@ -441,7 +444,7 @@ const Dashboard = () => {
             </div>
 
             <div className="mt-auto border-t border-border px-4 pt-6">
-              <Select value="" onValueChange={handleSettingsSelect}>
+              {/* <Select value="" onValueChange={handleSettingsSelect}>
                 <SelectTrigger
                   className={cn(
                     "h-9 w-full text-[10px] uppercase tracking-[0.16em] border-border bg-card/70 text-muted-foreground hover:text-foreground transition-colors",
@@ -490,7 +493,7 @@ const Dashboard = () => {
                     ))}
                   </SelectGroup>
                 </SelectContent>
-              </Select>
+              </Select> */}
               <button
                 type="button"
                 className="mt-1 flex w-full items-center gap-3 px-4 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
@@ -505,16 +508,6 @@ const Dashboard = () => {
                   Support
                 </span>
               </button>
-              {logoutErrorMessage ? (
-                <p
-                  className={cn(
-                    "mt-2 border border-destructive/50 bg-destructive/10 px-3 py-2 text-[10px] uppercase tracking-[0.16em] text-destructive",
-                    mono.className,
-                  )}
-                >
-                  {logoutErrorMessage}
-                </p>
-              ) : null}
             </div>
           </div>
         </aside>
