@@ -12,6 +12,7 @@ import { ComponentTreeNode, GenerationPlatform, WebAppSpec } from "@/lib/types";
 import logger from "@/lib/logger";
 import { buildEnhancedPrompt } from "@/lib/promptEnhancer";
 import { buildDesignContext, toDesignContextText } from "@/lib/designContext";
+import { isAuthError, requireAuthContext } from "@/lib/get-auth";
 
 export const runtime = "nodejs";
 
@@ -26,7 +27,7 @@ const STAGE2_MODELS = [
   "deepseek-v3.1:671b-cloud",
 ];
 const STAGE3_MODELS = [
-  // "minimax-m2.7:cloud",
+  "gemma4:31b-cloud",
   "deepseek-v3.1:671b-cloud",
   // "qwen3.5:9b",
   "gpt-oss:120b-cloud",
@@ -170,6 +171,16 @@ async function generateWithModelFallback(
 
 export async function POST(req: NextRequest) {
   try {
+    const authContext = await requireAuthContext({
+      request: req,
+      eventType: "generation.requested",
+    });
+
+    logger.info("Accepted authenticated generation request", {
+      appUserId: authContext.appUserId,
+      clerkUserId: authContext.clerkUserId,
+    });
+
     const {
       prompt,
       platform,
@@ -318,6 +329,17 @@ export async function POST(req: NextRequest) {
       },
     });
   } catch (error) {
+    if (isAuthError(error)) {
+      return NextResponse.json(
+        {
+          error: true,
+          code: error.code,
+          message: error.message,
+        },
+        { status: error.status },
+      );
+    }
+
     const err = error as Error;
     logger.error(err);
     return NextResponse.json(
