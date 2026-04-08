@@ -121,20 +121,24 @@ export default function CustomForgotPasswordFlow() {
     event.preventDefault();
     setStatusMessage("");
 
-    const submitResult = await signIn.resetPasswordEmailCode.submitPassword({
-      password: newPassword,
-    });
+    try {
+      const submitResult = await signIn.resetPasswordEmailCode.submitPassword({
+        password: newPassword,
+      });
 
-    if (submitResult.error) {
-      return;
+      if (submitResult.error) {
+        return;
+      }
+
+      if (signIn.status === "complete") {
+        await finishReset();
+        return;
+      }
+
+      setStatusMessage("Password update is not complete yet. Please retry.");
+    } catch {
+      setStatusMessage("Failed to update password. Please try again.");
     }
-
-    if (signIn.status === "complete") {
-      await finishReset();
-      return;
-    }
-
-    setStatusMessage("Password update is not complete yet. Please retry.");
   };
 
   const handleStartOver = async () => {
