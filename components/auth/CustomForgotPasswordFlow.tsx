@@ -96,21 +96,25 @@ export default function CustomForgotPasswordFlow() {
     event.preventDefault();
     setStatusMessage("");
 
-    const verifyResult = await signIn.resetPasswordEmailCode.verifyCode({
-      code,
-    });
+    try {
+      const verifyResult = await signIn.resetPasswordEmailCode.verifyCode({
+        code,
+      });
 
-    if (verifyResult.error) {
-      return;
+      if (verifyResult.error) {
+        return;
+      }
+
+      if (signIn.status === "needs_new_password") {
+        setStep("password");
+        setStatusMessage("Code verified. Set a new password to complete reset.");
+        return;
+      }
+
+      setStatusMessage("Verification is not complete yet. Please retry.");
+    } catch {
+      setStatusMessage("Verification failed. Please try again.");
     }
-
-    if (signIn.status === "needs_new_password") {
-      setStep("password");
-      setStatusMessage("Code verified. Set a new password to complete reset.");
-      return;
-    }
-
-    setStatusMessage("Verification is not complete yet. Please retry.");
   };
 
   const handleSubmitNewPassword = async (event: FormEvent<HTMLFormElement>) => {
