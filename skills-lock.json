@@ -46,6 +46,11 @@
       "sourceType": "github",
       "computedHash": "f54f39ce967af3a4bba1f662c3600f0253467508d5fbbc7c545c67e102da2253"
     },
+    "using-superpowers": {
+      "source": "obra/superpowers",
+      "sourceType": "github",
+      "computedHash": "e0eced9fbb205c212f420aded0c6f2bf5d5f059254679a8459b4fe72390160be"
+    },
     "vercel-react-best-practices": {
       "source": "vercel-labs/agent-skills",
       "sourceType": "github",
