@@ -123,7 +123,6 @@ export default function CustomForgotPasswordFlow() {
   const handleVerifyCode = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setStatusMessage("");
-
     if (!signIn) {
       return;
     }
