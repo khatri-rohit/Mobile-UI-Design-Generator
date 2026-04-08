@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   createShapeId,
@@ -492,4 +492,12 @@ const StudioPage = () => {
   );
 };
 
-export default StudioPage;
+const StudioPageWrapper = () => {
+  return (
+    <Suspense>
+      <StudioPage />
+    </Suspense>
+  )
+} 
+
+export default StudioPageWrapper;
