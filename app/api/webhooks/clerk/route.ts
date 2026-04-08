@@ -145,26 +145,20 @@ async function upsertUserFromWebhookData(tx: any, userData: any) {
 }
 
 async function ensureUserForSession(tx: any, clerkUserId: string) {
-  const existing = await tx.user.findUnique({
+  const fallbackEmail = `${clerkUserId}@clerk.local`;
+
+  return tx.user.upsert({
     where: {
       clerkUserId,
     },
-  });
-
-  if (existing) {
-    return existing;
-  }
-
-  const fallbackEmail = `${clerkUserId}@clerk.local`;
-
-  return tx.user.create({
-    data: {
+    create: {
       clerkUserId,
       email: fallbackEmail,
       name: fallbackEmail.split("@")[0] ?? "User",
       provider: "EMAIL",
       isActive: true,
     },
+    update: {},
   });
 }
 
@@ -194,25 +188,25 @@ export async function POST(req: NextRequest) {
     const webhookMessageId =
       req.headers.get("svix-id") ??
       `fallback-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-    console.log(webhookMessageId);
-    console.log(evt.data);
-    const duplicate = await prisma.clerkWebhookEvent.findUnique({
-      where: {
-        id: webhookMessageId,
-      },
+    logger.info("Received Clerk webhook", {
+      webhookMessageId,
+      eventType: evt.type,
     });
 
-    if (duplicate) {
-      return NextResponse.json({ ok: true, duplicate: true });
-    }
-
-    await prisma.$transaction(async (tx) => {
-      await tx.clerkWebhookEvent.create({
-        data: {
-          id: webhookMessageId,
-          eventType: evt.type,
-        },
+    const transactionResult = await prisma.$transaction(async (tx) => {
+      const insertedWebhookEvent = await tx.clerkWebhookEvent.createMany({
+        data: [
+          {
+            id: webhookMessageId,
+            eventType: evt.type,
+          },
+        ],
+        skipDuplicates: true,
       });
+
+      if (insertedWebhookEvent.count === 0) {
+        return { duplicate: true };
+      }
 
       if (evt.type === "user.created" || evt.type === "user.updated") {
         await upsertUserFromWebhookData(tx, evt.data);
@@ -280,15 +274,18 @@ export async function POST(req: NextRequest) {
         }
       }
 
+      const isSessionEvent = String(evt.type).startsWith("session.");
+
       await tx.authAuditEvent.create({
         data: {
-          clerkUserId:
-            (evt.data as any)?.id ??
-            (evt.data as any)?.user_id ??
-            (evt.data as any)?.userId ??
-            null,
+          clerkUserId: isSessionEvent
+            ? ((evt.data as any)?.user_id ?? (evt.data as any)?.userId ?? null)
+            : ((evt.data as any)?.id ??
+              (evt.data as any)?.user_id ??
+              (evt.data as any)?.userId ??
+              null),
           clerkSessionId:
-            (evt.data as any)?.id && String(evt.type).startsWith("session.")
+            (evt.data as any)?.id && isSessionEvent
               ? (evt.data as any)?.id
               : null,
           eventType: evt.type,
@@ -299,7 +296,13 @@ export async function POST(req: NextRequest) {
           },
         },
       });
+
+      return { duplicate: false };
     });
+
+    if (transactionResult.duplicate) {
+      return NextResponse.json({ ok: true, duplicate: true });
+    }
 
     return NextResponse.json({ ok: true });
   } catch (error) {

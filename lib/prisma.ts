@@ -11,11 +11,14 @@ function createPrismaClient(): PrismaClient {
 
   if (!databaseUrl) {
     throw new Error(
-      "DATABASE_URL is missing. Set your Supabase pooled connection string before using Prisma.",
+      "DATABASE_URL is missing. Set your database connection string before using Prisma.",
     );
   }
 
   const pool = new Pool({ connectionString: databaseUrl });
+  pool.on("error", (error) => {
+    console.error("Unexpected PostgreSQL pool error", error);
+  });
   const adapter = new PrismaPg(pool);
 
   return new PrismaClient({ adapter });

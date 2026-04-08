@@ -95,9 +95,12 @@ Copy `.env.example` values into your local `.env` and replace `[YOUR-PASSWORD]`:
 # Runtime Prisma Client usage (Supabase pooled connection)
 DATABASE_URL="postgresql://postgres.grlntfzdslmklimerevx:[YOUR-PASSWORD]@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres?pgbouncer=true"
 
-# Prisma CLI and migrations (direct connection)
-DIRECT_URL="postgresql://postgres.grlntfzdslmklimerevx:[YOUR-PASSWORD]@aws-1-ap-southeast-1.pooler.supabase.com:5432/postgres"
+# Prisma CLI and migrations (direct connection, preferred)
+DIRECT_URL="postgresql://postgres:[YOUR-PASSWORD]@db.[YOUR-PROJECT-REF].supabase.co:5432/postgres"
 ```
+
+If direct host access is not available (for example on IPv4-only environments),
+you can use the Supabase session pooler on port `5432` as a fallback `DIRECT_URL`.
 
 ### Prisma Commands
 

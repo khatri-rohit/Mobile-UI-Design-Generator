@@ -1,8 +1,7 @@
 "use client";
 
-import { useRef, useState } from "react";
-import gsap from "gsap";
-import { useGSAP } from "@gsap/react";
+import { useEffect, useRef, useState } from "react";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { JetBrains_Mono } from "next/font/google";
 import { useRouter } from "next/navigation";
 import type { LucideIcon } from "lucide-react";
@@ -41,7 +40,10 @@ import {
   clerkUserProfileAppearance,
 } from "@/lib/clerkAppearance";
 
-gsap.registerPlugin(useGSAP);
+const STUDIO_PROMPT_STORAGE_KEY = "uiuxbuilder:studioPrompt";
+
+const FOCUSABLE_SELECTOR =
+  "a[href], button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex='-1'])";
 
 const mono = JetBrains_Mono({
   subsets: ["latin"],
@@ -115,16 +117,57 @@ const quickActions: Array<{
 
 const Dashboard = () => {
   const router = useRouter();
-  const rootRef = useRef<HTMLDivElement | null>(null);
+  const shouldReduceMotion = useReducedMotion();
   const commandInputRef = useRef<HTMLInputElement | null>(null);
+  const launcherButtonRef = useRef<HTMLButtonElement | null>(null);
+  const mobileDrawerRef = useRef<HTMLElement | null>(null);
 
   const [activeNavItem, setActiveNavItem] = useState(
     navItems[0]?.label ?? "Recent",
   );
   const [platform, setPlatform] = useState<DashboardPlatform>("web");
   const [command, setCommand] = useState("");
-  const [selectedModel, setSelectedModel] = useState("flash");
+  const [selectedModel, setSelectedModel] = useState("gemma4:31b-cloud");
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+  const fadeUp = (delay = 0) =>
+    shouldReduceMotion
+      ? {}
+      : {
+          initial: { opacity: 0, y: 18 },
+          animate: { opacity: 1, y: 0 },
+          transition: {
+            delay,
+            duration: 0.28,
+            ease: [0.22, 1, 0.36, 1] as [number, number, number, number],
+          },
+        };
+
+  const fadeLeft = (delay = 0) =>
+    shouldReduceMotion
+      ? {}
+      : {
+          initial: { opacity: 0, x: -24 },
+          animate: { opacity: 1, x: 0 },
+          transition: {
+            delay,
+            duration: 0.26,
+            ease: [0.22, 1, 0.36, 1] as [number, number, number, number],
+          },
+        };
+
+  const scaleIn = (delay = 0) =>
+    shouldReduceMotion
+      ? {}
+      : {
+          initial: { opacity: 0, scale: 0.98 },
+          animate: { opacity: 1, scale: 1 },
+          transition: {
+            delay,
+            duration: 0.24,
+            ease: [0.22, 1, 0.36, 1] as [number, number, number, number],
+          },
+        };
 
   const canSubmit = command.trim().length > 0;
 
@@ -144,8 +187,16 @@ const Dashboard = () => {
       return;
     }
 
+    try {
+      window.sessionStorage.setItem(
+        STUDIO_PROMPT_STORAGE_KEY,
+        normalizedPrompt,
+      );
+    } catch {
+      // Ignore storage failures; studio still has URL fallbacks for minimal state.
+    }
+
     const params = new URLSearchParams({
-      prompt: normalizedPrompt,
       platform,
       model: selectedModel,
     });
@@ -153,180 +204,69 @@ const Dashboard = () => {
     router.push(`/studio?${params.toString()}`);
   };
 
-  // const recordLogoutAudit = async () => {
-  // try {
-  //   const response = await fetch("/api/auth/logout-audit", {
-  //     method: "POST",
-  //   });
+  useEffect(() => {
+    if (!isMobileMenuOpen) {
+      return;
+    }
 
-  //   if (!response.ok) {
-  //     console.warn("Logout audit request was not accepted", {
-  //       status: response.status,
-  //     });
-  //   }
-  // } catch (error) {
-  //   console.warn("Logout audit request failed", error);
-  // }
-  // };
+    const fallbackLauncher = launcherButtonRef.current;
+    const previouslyFocused = document.activeElement as HTMLElement | null;
+    const panel = mobileDrawerRef.current;
 
-  // const handleSettingsSelect = async (value: string) => {
-  //   if (value !== "logout" || isSigningOut) {
-  //     return;
-  //   }
+    const getFocusableElements = () =>
+      Array.from(
+        panel?.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR) ?? [],
+      );
 
-  //   setLogoutErrorMessage("");
-  //   setIsSigningOut(true);
+    const focusable = getFocusableElements();
+    focusable[0]?.focus();
 
-  //   await recordLogoutAudit();
-
-  //   try {
-  //     await signOut();
-  //     router.replace("/");
-  //     router.refresh();
-  //   } catch (error) {
-  //     console.error("Sign out failed", error);
-  //     setLogoutErrorMessage("Sign out failed. Please try again.");
-  //   } finally {
-  //     setIsSigningOut(false);
-  //   }
-  // };
-
-  useGSAP(
-    () => {
-      if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setIsMobileMenuOpen(false);
         return;
       }
 
-      const animatedTargets = [
-        ".logic-topbar",
-        ".logic-sidebar",
-        ".logic-word",
-        ".logic-chip",
-        ".logic-console",
-        ".logic-status",
-        ".logic-image-card",
-      ];
+      if (event.key !== "Tab") {
+        return;
+      }
 
-      gsap.set(animatedTargets, { willChange: "transform,opacity" });
+      const currentFocusable = getFocusableElements();
+      if (currentFocusable.length === 0) {
+        return;
+      }
 
-      const timeline = gsap.timeline();
-      const chipRevealFallback = window.setTimeout(() => {
-        gsap.set(".logic-chip", {
-          opacity: 1,
-          y: 0,
-          clearProps: "transform,opacity",
-        });
-      }, 1200);
+      const first = currentFocusable[0];
+      const last = currentFocusable[currentFocusable.length - 1];
+      const active = document.activeElement as HTMLElement | null;
 
-      timeline
-        .from(".logic-topbar", {
-          y: -26,
-          opacity: 0,
-          duration: 0.24,
-          ease: "power4.out",
-          force3D: true,
-        })
-        .from(
-          ".logic-sidebar",
-          {
-            x: -52,
-            opacity: 0,
-            duration: 0.25,
-            ease: "power4.out",
-            force3D: true,
-          },
-          "<0.05",
-        )
-        .from(
-          ".logic-word",
-          {
-            yPercent: 115,
-            opacity: 0,
-            stagger: 0.06,
-            duration: 0.34,
-            ease: "power4.out",
-            force3D: true,
-          },
-          "<0.06",
-        )
-        .fromTo(
-          ".logic-chip",
-          {
-            y: 16,
-            opacity: 0,
-          },
-          {
-            y: 0,
-            opacity: 1,
-            stagger: 0.06,
-            duration: 0.2,
-            ease: "power4.out",
-            force3D: true,
-            immediateRender: false,
-          },
-          "<0.03",
-        )
-        .from(
-          ".logic-console",
-          {
-            y: 30,
-            opacity: 0,
-            duration: 0.24,
-            ease: "expo.out",
-            force3D: true,
-          },
-          "<0.04",
-        )
-        .from(
-          ".logic-status",
-          {
-            y: 14,
-            opacity: 0,
-            duration: 0.18,
-            ease: "power4.out",
-            force3D: true,
-          },
-          "<0.03",
-        )
-        .from(
-          ".logic-image-card",
-          {
-            scale: 0.96,
-            opacity: 0,
-            stagger: 0.08,
-            duration: 0.22,
-            ease: "expo.out",
-            force3D: true,
-          },
-          "<",
-        )
-        .from(
-          ".logic-feed-item",
-          {
-            x: -12,
-            opacity: 0,
-            stagger: 0.05,
-            duration: 0.18,
-            ease: "power2.out",
-            force3D: true,
-          },
-          "<0.08",
-        )
-        .add(() => {
-          window.clearTimeout(chipRevealFallback);
-          gsap.set(animatedTargets, { clearProps: "willChange" });
-        });
+      if (!event.shiftKey && active === last) {
+        event.preventDefault();
+        first.focus();
+      }
 
-      return () => {
-        window.clearTimeout(chipRevealFallback);
-      };
-    },
-    { scope: rootRef },
-  );
+      if (event.shiftKey && active === first) {
+        event.preventDefault();
+        last.focus();
+      }
+    };
+
+    document.addEventListener("keydown", onKeyDown);
+
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+      if (previouslyFocused) {
+        previouslyFocused.focus();
+        return;
+      }
+
+      fallbackLauncher?.focus();
+    };
+  }, [isMobileMenuOpen]);
 
   return (
     <div
-      ref={rootRef}
       className={cn(
         "dark relative min-h-screen overflow-hidden bg-background text-foreground",
         "selection:bg-primary selection:text-primary-foreground",
@@ -337,7 +277,10 @@ const Dashboard = () => {
         "[--destructive:#ba1a1a] [--border:#222222] [--input:#333333] [--ring:#777777]",
       )}
     >
-      <header className="logic-topbar fixed top-0 z-40 flex h-14 w-full items-center justify-between border-b border-border bg-background/95 px-6 backdrop-blur-[1px]">
+      <motion.header
+        className="logic-topbar fixed top-0 z-40 flex h-14 w-full items-center justify-between border-b border-border bg-background/95 px-6 backdrop-blur-[1px]"
+        {...fadeUp(0.02)}
+      >
         <div className="flex items-center gap-4">
           <Link
             href="/"
@@ -367,10 +310,13 @@ const Dashboard = () => {
             </UserButton.MenuItems>
           </UserButton>
         </div>
-      </header>
+      </motion.header>
 
       <div className="flex h-screen overflow-hidden pt-14">
-        <aside className="logic-sidebar hidden w-64 shrink-0 border-r border-border bg-background md:flex">
+        <motion.aside
+          className="logic-sidebar hidden w-64 shrink-0 border-r border-border bg-background md:flex"
+          {...fadeLeft(0.06)}
+        >
           <div className="flex h-full flex-col py-6">
             <div className="px-4">
               <p
@@ -417,11 +363,12 @@ const Dashboard = () => {
             </div>
 
             <div className="mt-8 flex flex-1 flex-col gap-4 px-4">
-              {projectFeed.map((project) => (
-                <button
+              {projectFeed.map((project, index) => (
+                <motion.button
                   key={project.name}
                   type="button"
                   className="logic-feed-item border border-border p-3 text-left transition-colors hover:border-muted-foreground"
+                  {...fadeLeft(0.12 + index * 0.04)}
                 >
                   <div className="mb-1 flex items-start justify-between gap-3">
                     <span className="truncate text-xs font-bold">
@@ -439,7 +386,7 @@ const Dashboard = () => {
                   <p className="truncate text-[11px] text-muted-foreground">
                     {project.detail}
                   </p>
-                </button>
+                </motion.button>
               ))}
             </div>
 
@@ -510,11 +457,14 @@ const Dashboard = () => {
               </button>
             </div>
           </div>
-        </aside>
+        </motion.aside>
 
         <main className="relative flex flex-1 flex-col overflow-y-auto bg-background">
           <div className="pointer-events-none absolute inset-0 overflow-hidden opacity-30">
-            <div className="logic-image-card absolute top-20 right-8 hidden h-64 w-48 rotate-3 border border-border bg-card md:block">
+            <motion.div
+              className="logic-image-card absolute top-20 right-8 hidden h-64 w-48 rotate-3 border border-border bg-card md:block"
+              {...scaleIn(0.2)}
+            >
               <div className="h-full w-full bg-[linear-gradient(145deg,#1d1d1d_0%,#101010_42%,#262626_100%)]" />
               <div
                 className={cn(
@@ -524,8 +474,11 @@ const Dashboard = () => {
               >
                 SYSTEM UI
               </div>
-            </div>
-            <div className="logic-image-card absolute bottom-36 left-8 hidden h-40 w-64 -rotate-6 border border-border bg-card md:block">
+            </motion.div>
+            <motion.div
+              className="logic-image-card absolute bottom-36 left-8 hidden h-40 w-64 -rotate-6 border border-border bg-card md:block"
+              {...scaleIn(0.26)}
+            >
               <div className="h-full w-full bg-[radial-gradient(circle_at_22%_42%,#2d2d2d_0%,#151515_55%,#0d0d0d_100%)]" />
               <div
                 className={cn(
@@ -535,47 +488,64 @@ const Dashboard = () => {
               >
                 CIRCUITRY
               </div>
-            </div>
+            </motion.div>
           </div>
 
-          <section className="relative flex flex-1 w-full flex-col items-center justify-center gap-6 px-8 py-6 text-center">
-            <Bolt className="mb-2 size-10 text-muted-foreground" />
+          <motion.section
+            className="relative flex flex-1 w-full flex-col items-center justify-center gap-6 px-8 py-6 text-center"
+            {...fadeUp(0.1)}
+          >
+            <motion.div {...fadeUp(0.12)}>
+              <Bolt className="mb-2 size-10 text-muted-foreground" />
+            </motion.div>
 
             <h1 className="logic-hero-title flex flex-wrap justify-center gap-x-3 gap-y-1 text-4xl font-black tracking-tight text-foreground sm:text-5xl md:text-6xl lg:text-7xl">
-              {titleWords.map((word) => (
+              {titleWords.map((word, index) => (
                 <span key={word} className="overflow-hidden">
-                  <span className="logic-word inline-block">{word}</span>
+                  <motion.span
+                    className="logic-word inline-block"
+                    {...fadeUp(0.14 + index * 0.05)}
+                  >
+                    {word}
+                  </motion.span>
                 </span>
               ))}
             </h1>
 
             <div className="mt-4 flex max-w-3xl flex-wrap justify-center gap-3">
-              {quickActions.map((action) => {
+              {quickActions.map((action, index) => {
                 const Icon = action.icon;
 
                 return (
-                  <Button
+                  <motion.div
                     key={action.label}
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleQuickAction(action)}
-                    className="logic-chip h-10 border-border bg-card/70 px-4"
+                    {...fadeUp(0.18 + index * 0.04)}
                   >
-                    <Icon data-icon="inline-start" />
-                    <span
-                      className={cn(
-                        "text-[11px] uppercase tracking-[0.16em] text-muted-foreground",
-                        mono.className,
-                      )}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleQuickAction(action)}
+                      className="logic-chip h-10 border-border bg-card/70 px-4"
                     >
-                      {action.label}
-                    </span>
-                  </Button>
+                      <Icon data-icon="inline-start" />
+                      <span
+                        className={cn(
+                          "text-[11px] uppercase tracking-[0.16em] text-muted-foreground",
+                          mono.className,
+                        )}
+                      >
+                        {action.label}
+                      </span>
+                    </Button>
+                  </motion.div>
                 );
               })}
             </div>
             {/* Prompt Box */}
-            <section className="logic-console mt-6 w-full max-w-4xl text-left sm:px-6">
+            <motion.section
+              className="logic-console mt-6 w-full max-w-4xl text-left sm:px-6"
+              {...fadeUp(0.28)}
+            >
               <div className="border border-input bg-card/80 shadow-2xl shadow-black/30">
                 <div className="flex items-center gap-2 border-b border-border px-3 py-2">
                   <Button
@@ -665,9 +635,15 @@ const Dashboard = () => {
                       </SelectTrigger>
                       <SelectContent className="mt-10 min-w-32 border border-input bg-muted text-foreground">
                         <SelectGroup>
-                          <SelectItem value="flash">3.0 FLASH</SelectItem>
-                          <SelectItem value="pro">3.0 PRO</SelectItem>
-                          <SelectItem value="ultra">4.0 ULTRA</SelectItem>
+                          <SelectItem value="gemma4:31b-cloud">
+                            3.0 FLASH
+                          </SelectItem>
+                          <SelectItem value="gpt-oss:120b-cloud">
+                            3.0 PRO
+                          </SelectItem>
+                          <SelectItem value="deepseek-v3.1:671b-cloud">
+                            4.0 ULTRA
+                          </SelectItem>
                         </SelectGroup>
                       </SelectContent>
                     </Select>
@@ -692,7 +668,10 @@ const Dashboard = () => {
                 </div>
               </div>
 
-              <div className="logic-status mt-4 flex items-center justify-between gap-4 px-2">
+              <motion.div
+                className="logic-status mt-4 flex items-center justify-between gap-4 px-2"
+                {...fadeUp(0.34)}
+              >
                 <div className="flex items-center gap-4">
                   <div className="flex items-center gap-2">
                     <div className="size-1.5 bg-primary" />
@@ -723,104 +702,122 @@ const Dashboard = () => {
                 >
                   Tokens: 4.2k available
                 </span>
-              </div>
-            </section>
-          </section>
+              </motion.div>
+            </motion.section>
+          </motion.section>
         </main>
       </div>
 
-      {isMobileMenuOpen && (
-        <div className="fixed inset-0 z-50 md:hidden">
-          <button
-            type="button"
-            aria-label="Close navigation menu backdrop"
-            onClick={() => setIsMobileMenuOpen(false)}
-            className="absolute inset-0 bg-black/60"
-          />
+      <AnimatePresence>
+        {isMobileMenuOpen ? (
+          <motion.div
+            className="fixed inset-0 z-50 md:hidden"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            <button
+              type="button"
+              aria-label="Close navigation menu backdrop"
+              onClick={() => setIsMobileMenuOpen(false)}
+              className="absolute inset-0 bg-black/60"
+            />
 
-          <aside className="absolute right-0 top-0 flex h-full w-[85vw] max-w-sm flex-col border-l border-border bg-background">
-            <div className="flex items-center justify-between border-b border-border px-4 py-4">
-              <span
-                className={cn(
-                  "text-[11px] uppercase tracking-[0.18em]",
-                  mono.className,
-                )}
-              >
-                Navigation
-              </span>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                aria-label="Close navigation menu"
-                onClick={() => setIsMobileMenuOpen(false)}
-              >
-                <X />
-              </Button>
-            </div>
+            <motion.aside
+              ref={mobileDrawerRef}
+              className="absolute right-0 top-0 flex h-full w-[85vw] max-w-sm flex-col border-l border-border bg-background"
+              initial={{ x: "100%" }}
+              animate={{ x: 0 }}
+              exit={{ x: "100%" }}
+              transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+            >
+              <div className="flex items-center justify-between border-b border-border px-4 py-4">
+                <span
+                  className={cn(
+                    "text-[11px] uppercase tracking-[0.18em]",
+                    mono.className,
+                  )}
+                >
+                  Navigation
+                </span>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label="Close navigation menu"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                >
+                  <X />
+                </Button>
+              </div>
 
-            <nav className="flex flex-col gap-1 px-3 py-4">
-              {navItems.map((item) => {
-                const Icon = item.icon;
+              <nav className="flex flex-col gap-1 px-3 py-4">
+                {navItems.map((item) => {
+                  const Icon = item.icon;
 
-                return (
+                  return (
+                    <button
+                      key={`mobile-${item.label}`}
+                      type="button"
+                      onClick={() => {
+                        setActiveNavItem(item.label);
+                        setIsMobileMenuOpen(false);
+                      }}
+                      className={cn(
+                        "flex items-center gap-3 px-3 py-2 text-left",
+                        activeNavItem === item.label
+                          ? "bg-primary text-primary-foreground"
+                          : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                      )}
+                    >
+                      <Icon className="size-4" />
+                      <span
+                        className={cn(
+                          "text-[11px] uppercase tracking-[0.16em]",
+                          mono.className,
+                        )}
+                      >
+                        {item.label}
+                      </span>
+                    </button>
+                  );
+                })}
+              </nav>
+
+              <div className="border-t border-border px-3 py-4">
+                {projectFeed.map((project) => (
                   <button
-                    key={`mobile-${item.label}`}
+                    key={`mobile-feed-${project.name}`}
                     type="button"
-                    onClick={() => {
-                      setActiveNavItem(item.label);
-                      setIsMobileMenuOpen(false);
-                    }}
-                    className={cn(
-                      "flex items-center gap-3 px-3 py-2 text-left",
-                      activeNavItem === item.label
-                        ? "bg-primary text-primary-foreground"
-                        : "text-muted-foreground hover:bg-muted hover:text-foreground",
-                    )}
+                    className="mb-2 flex w-full flex-col border border-border p-3 text-left"
                   >
-                    <Icon className="size-4" />
+                    <span className="truncate text-xs font-bold">
+                      {project.name}
+                    </span>
                     <span
                       className={cn(
-                        "text-[11px] uppercase tracking-[0.16em]",
+                        "mt-1 text-[10px] text-muted-foreground",
                         mono.className,
                       )}
                     >
-                      {item.label}
+                      {project.time} - {project.detail}
                     </span>
                   </button>
-                );
-              })}
-            </nav>
-
-            <div className="border-t border-border px-3 py-4">
-              {projectFeed.map((project) => (
-                <button
-                  key={`mobile-feed-${project.name}`}
-                  type="button"
-                  className="mb-2 flex w-full flex-col border border-border p-3 text-left"
-                >
-                  <span className="truncate text-xs font-bold">
-                    {project.name}
-                  </span>
-                  <span
-                    className={cn(
-                      "mt-1 text-[10px] text-muted-foreground",
-                      mono.className,
-                    )}
-                  >
-                    {project.time} - {project.detail}
-                  </span>
-                </button>
-              ))}
-            </div>
-          </aside>
-        </div>
-      )}
+                ))}
+              </div>
+            </motion.aside>
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
 
       <Button
+        ref={launcherButtonRef}
         variant="default"
         size="icon-lg"
         aria-label="Open navigation menu"
-        className="fixed right-6 bottom-6 z-50 md:hidden"
+        className={cn(
+          "fixed right-6 bottom-6 z-50 md:hidden",
+          isMobileMenuOpen && "pointer-events-none opacity-0",
+        )}
         onClick={() => setIsMobileMenuOpen(true)}
       >
         <Menu />

@@ -39,6 +39,25 @@ import {
 } from "lucide-react";
 import SelectModel from "@/components/SelectModel";
 
+const STUDIO_PROMPT_STORAGE_KEY = "uiuxbuilder:studioPrompt";
+
+const DASHBOARD_MODEL_ALIASES: Record<string, string> = {
+  flash: "gemma4:31b-cloud",
+  pro: "gpt-oss:120b-cloud",
+  ultra: "deepseek-v3.1:671b-cloud",
+};
+
+const AVAILABLE_MODELS = [
+  "gemma4:31b-cloud",
+  "llama3.1:8b",
+  "mistral:7b",
+  "gpt-oss:120b-cloud",
+  "llama3.2-vision:11b",
+  "deepseek-v3.1:671b-cloud",
+  "gemma3:27b-cloud",
+  "mistral-large-3:675b-cloud",
+] as const;
+
 const components: TLComponents = {
   Background: () => (
     <div
@@ -177,32 +196,40 @@ const StudioPage = () => {
   const [selectedPlatform, setSelectedPlatform] =
     useState<GenerationPlatform>("web");
   const [model, setModel] = useState<string>("gemma4:31b-cloud");
+  const models = [...AVAILABLE_MODELS];
 
   useEffect(() => {
+    const promptFromStorage =
+      typeof window !== "undefined"
+        ? window.sessionStorage.getItem(STUDIO_PROMPT_STORAGE_KEY)?.trim()
+        : null;
     const promptFromQuery = searchParams.get("prompt")?.trim();
-    if (!promptFromQuery) {
-      return;
+    if (promptFromStorage) {
+      setPrompt(promptFromStorage);
+      window.sessionStorage.removeItem(STUDIO_PROMPT_STORAGE_KEY);
+    } else if (promptFromQuery) {
+      setPrompt(promptFromQuery);
     }
 
-    setPrompt(promptFromQuery);
-  }, [searchParams]);
+    const platformFromQuery = searchParams.get("platform")?.trim();
+    if (platformFromQuery === "web" || platformFromQuery === "mobile") {
+      setSelectedPlatform(platformFromQuery);
+    }
 
-  // const quickPrompts = [
-  //   "UGC agency landing page with hero, social proof, pricing, and conversion-focused contact section",
-  //   "Creative portfolio + service highlights with strong CTA hierarchy",
-  //   "Case-study first website with testimonial and trust metrics blocks",
-  //   "Modern brand site with cinematic hero and performance stats strip",
-  // ];
-  const models = [
-    "gemma4:31b-cloud",
-    "llama3.1:8b",
-    "mistral:7b",
-    "gpt-oss:120b-cloud",
-    "llama3.2-vision:11b",
-    "deepseek-v3.1:671b-cloud",
-    "gemma3:27b-cloud",
-    "mistral-large-3:675b-cloud",
-  ];
+    const modelFromQuery = searchParams.get("model")?.trim();
+    const normalizedModel = modelFromQuery
+      ? (DASHBOARD_MODEL_ALIASES[modelFromQuery] ?? modelFromQuery)
+      : null;
+
+    if (
+      normalizedModel &&
+      AVAILABLE_MODELS.includes(
+        normalizedModel as (typeof AVAILABLE_MODELS)[number],
+      )
+    ) {
+      setModel(normalizedModel);
+    }
+  }, [searchParams]);
   const handleGenerate = async () => {
     if (!prompt.trim()) return;
 
@@ -407,19 +434,6 @@ const StudioPage = () => {
           </span>
         </div>
 
-        {/* <div className="pointer-events-auto absolute left-4 top-16 flex max-w-[70vw] flex-wrap gap-2">
-          {quickPrompts.map((item) => (
-            <button
-              key={item}
-              type="button"
-              onClick={() => setPrompt(item)}
-              className="rounded-xl border border-zinc-700/80 bg-zinc-900/80 px-3 py-1.5 text-xs text-zinc-300 transition hover:border-amber-300/60 hover:text-zinc-100"
-            >
-              {item}
-            </button>
-          ))}
-        </div> */}
-
         <div className="pointer-events-auto absolute bottom-4 left-1/2 w-[min(980px,calc(100%-1.5rem))] -translate-x-1/2 rounded-3xl border border-zinc-700/80 bg-zinc-950/95 p-3 shadow-2xl shadow-black/40 backdrop-blur-md">
           <div className="mb-2 flex items-center justify-between gap-3">
             <div className="flex items-center gap-2 rounded-xl border border-zinc-800 bg-zinc-900/90 p-1">
@@ -497,7 +511,7 @@ const StudioPageWrapper = () => {
     <Suspense>
       <StudioPage />
     </Suspense>
-  )
-} 
+  );
+};
 
 export default StudioPageWrapper;

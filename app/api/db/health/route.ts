@@ -33,12 +33,12 @@ export async function GET(req: Request) {
     }
 
     const err = error as Error;
-    logger.error(err);
+    logger.error("DB health check failed", err);
 
     return NextResponse.json(
       {
         error: true,
-        message: err.message,
+        message: "Database health check failed.",
       },
       { status: 500 },
     );

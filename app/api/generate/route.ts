@@ -179,7 +179,6 @@ export async function POST(req: NextRequest) {
     logger.info("Accepted authenticated generation request", {
       appUserId: authContext.appUserId,
       clerkUserId: authContext.clerkUserId,
-      clerkSessionId: authContext.clerkSessionId,
     });
 
     const {

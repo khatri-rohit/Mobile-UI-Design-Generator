@@ -1,6 +1,34 @@
+"use client";
+
+import { FormEvent, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+
+const LANDING_EMAIL_STORAGE_KEY = "uiuxbuilder:workEmail";
 
 export function ReadyToDeploySection() {
+  const router = useRouter();
+  const [email, setEmail] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    const normalizedEmail = email.trim();
+    if (!normalizedEmail) {
+      return;
+    }
+
+    try {
+      window.sessionStorage.setItem(LANDING_EMAIL_STORAGE_KEY, normalizedEmail);
+    } catch {
+      // Ignore storage failures and continue navigation.
+    }
+
+    setIsSubmitting(true);
+    router.push("/studio");
+  };
+
   return (
     <section className="scroll-item relative flex min-h-152 flex-col items-center justify-center bg-white p-12">
       <div className="space-y-6 text-center">
@@ -19,9 +47,8 @@ export function ReadyToDeploySection() {
             <div className="line-sweep mt-4 h-px bg-white/40" />
 
             <form
-              action="/studio"
-              method="get"
               className="mt-6 flex flex-col gap-3 sm:flex-row"
+              onSubmit={handleSubmit}
             >
               <input
                 className="mono min-h-11 w-full border-0 border-b border-current bg-transparent text-base uppercase outline-none"
@@ -31,12 +58,15 @@ export function ReadyToDeploySection() {
                 required
                 autoComplete="email"
                 aria-label="Work email"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
               />
               <button
                 type="submit"
+                disabled={isSubmitting}
                 className="min-h-11 bg-black px-8 py-2 text-sm font-bold text-white transition-all hover:bg-neutral-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current focus-visible:ring-offset-2 focus-visible:ring-offset-white"
               >
-                JOIN
+                {isSubmitting ? "OPENING..." : "JOIN"}
               </button>
             </form>
           </div>

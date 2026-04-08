@@ -39,9 +39,9 @@ const StarterInput = ({ onSubmit }: StarterInputProps) => {
           />
         </div>
 
-        {/* <label htmlFor="landing-starter-input" className="sr-only">
+        <label htmlFor="landing-starter-input" className="sr-only">
           Describe what you want to generate
-        </label> */}
+        </label>
         <input
           id="landing-starter-input"
           className="mono w-full border-none bg-transparent text-white placeholder:text-zinc-500 focus:outline-none"

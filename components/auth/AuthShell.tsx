@@ -1,7 +1,10 @@
+"use client";
+
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { JetBrains_Mono } from "next/font/google";
 import { Bot, ShieldCheck, Sparkles } from "lucide-react";
+import { motion, useReducedMotion } from "motion/react";
 
 import { cn } from "@/lib/utils";
 
@@ -20,6 +23,7 @@ type AuthShellProps = {
 };
 
 const systemStats = [
+  // Decorative placeholder values; these are not real-time runtime metrics.
   { label: "Gateway latency", value: "14ms" },
   { label: "Session hardening", value: "Enabled" },
   { label: "Workspace region", value: "IAD-01" },
@@ -30,6 +34,59 @@ const navByMode: Record<AuthMode, { href: string; label: string }> = {
   "sign-up": { href: "/sign-in", label: "Already registered" },
 };
 
+const shellVariants = {
+  hidden: { opacity: 0, y: 10 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: {
+      duration: 0.45,
+      ease: [0.22, 1, 0.36, 1] as [number, number, number, number],
+    },
+  },
+  exit: {
+    opacity: 0,
+    y: 6,
+    transition: { duration: 0.2 },
+  },
+};
+
+const leftPanelVariants = {
+  hidden: { opacity: 0, x: -18 },
+  visible: {
+    opacity: 1,
+    x: 0,
+    transition: {
+      duration: 0.42,
+      delay: 0.08,
+      ease: [0.22, 1, 0.36, 1] as [number, number, number, number],
+    },
+  },
+  exit: {
+    opacity: 0,
+    x: -12,
+    transition: { duration: 0.2 },
+  },
+};
+
+const rightPanelVariants = {
+  hidden: { opacity: 0, x: 18 },
+  visible: {
+    opacity: 1,
+    x: 0,
+    transition: {
+      duration: 0.42,
+      delay: 0.12,
+      ease: [0.22, 1, 0.36, 1] as [number, number, number, number],
+    },
+  },
+  exit: {
+    opacity: 0,
+    x: 12,
+    transition: { duration: 0.2 },
+  },
+};
+
 export default function AuthShell({
   mode,
   title,
@@ -37,6 +94,8 @@ export default function AuthShell({
   children,
 }: AuthShellProps) {
   const secondaryNav = navByMode[mode];
+  const shouldReduceMotion = useReducedMotion();
+  const initialState = shouldReduceMotion ? "visible" : "hidden";
 
   return (
     <div
@@ -84,8 +143,20 @@ export default function AuthShell({
       </header>
 
       <main className="relative z-10 mx-auto flex min-h-[calc(100vh-3.5rem)] w-full max-w-7xl items-center px-4 py-6 sm:px-6 sm:py-8 lg:px-10">
-        <div className="grid w-full overflow-hidden border border-white/10 bg-black/35 backdrop-blur-sm motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-2 motion-safe:duration-500 lg:grid-cols-[1.05fr_0.95fr]">
-          <section className="relative border-b border-white/10 px-6 py-8 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-left-2 motion-safe:duration-500 sm:px-10 lg:border-b-0 lg:border-r lg:border-white/10 lg:px-12 lg:py-14">
+        <motion.div
+          className="grid w-full overflow-hidden border border-white/10 bg-black/35 backdrop-blur-sm lg:grid-cols-[1.05fr_0.95fr]"
+          variants={shellVariants}
+          initial={initialState}
+          animate="visible"
+          exit="exit"
+        >
+          <motion.section
+            className="relative border-b border-white/10 px-6 py-8 sm:px-10 lg:border-b-0 lg:border-r lg:border-white/10 lg:px-12 lg:py-14"
+            variants={leftPanelVariants}
+            initial={initialState}
+            animate="visible"
+            exit="exit"
+          >
             <div className="inline-flex items-center gap-2 border border-white/15 bg-black/50 px-3 py-1">
               <Sparkles className="size-3.5" />
               <span
@@ -144,9 +215,15 @@ export default function AuthShell({
                 Session policies and model access are audited in real time.
               </p>
             </div>
-          </section>
+          </motion.section>
 
-          <section className="px-6 py-7 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-right-2 motion-safe:duration-500 sm:px-10 sm:py-10 lg:px-12 lg:py-14">
+          <motion.section
+            className="px-6 py-7 sm:px-10 sm:py-10 lg:px-12 lg:py-14"
+            variants={rightPanelVariants}
+            initial={initialState}
+            animate="visible"
+            exit="exit"
+          >
             <div className="mb-7 flex items-center justify-between border-b border-white/10 pb-4">
               <div>
                 <p
@@ -173,8 +250,8 @@ export default function AuthShell({
             </div>
 
             {children}
-          </section>
-        </div>
+          </motion.section>
+        </motion.div>
       </main>
     </div>
   );

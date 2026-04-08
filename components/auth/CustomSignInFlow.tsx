@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
@@ -8,12 +7,53 @@ import { useSignIn } from "@clerk/nextjs";
 
 import { cn } from "@/lib/utils";
 
-// type ClerkErrorPayload = {
-//   global?: Array<{ message?: string }>;
-//   fields?: Record<string, { message?: string } | Array<{ message?: string }>>;
-// };
+type ClerkFieldError = { message?: string };
 
-function getFieldError(errors: any, fieldName: string) {
+type ClerkErrorPayload = {
+  global?: ClerkFieldError[];
+  fields?: Record<string, ClerkFieldError | ClerkFieldError[] | undefined>;
+};
+
+type PendingSessionTask = {
+  key?: string;
+  type?: string;
+  path?: string;
+  url?: string;
+  redirectUrl?: string;
+};
+
+type SessionWithTask = {
+  currentTask?: PendingSessionTask | null;
+} | null;
+
+type MfaCodeStrategy = "email_code" | "phone_code";
+
+function getTaskNavigationTarget(session: SessionWithTask): string | null {
+  const task = session?.currentTask;
+  if (!task) {
+    return null;
+  }
+
+  return task.redirectUrl ?? task.url ?? task.path ?? null;
+}
+
+function getSupportedCodeStrategy(
+  supportedFactors: Array<{ strategy?: string }>,
+): MfaCodeStrategy | null {
+  const available = supportedFactors.find(
+    (factor) =>
+      factor.strategy === "email_code" || factor.strategy === "phone_code",
+  )?.strategy;
+
+  return available === "phone_code" || available === "email_code"
+    ? available
+    : null;
+}
+
+function getFieldError(
+  errors: ClerkErrorPayload | undefined,
+  fieldName: string,
+) {
   const fieldError = errors?.fields?.[fieldName];
 
   if (!fieldError) {
@@ -60,10 +100,12 @@ export default function CustomSignInFlow() {
   const [statusMessage, setStatusMessage] = useState("");
   const [oauthLoadingProvider, setOauthLoadingProvider] =
     useState<OAuthProvider | null>(null);
+  const [activeMfaStrategy, setActiveMfaStrategy] =
+    useState<MfaCodeStrategy | null>(null);
 
   const isLoading = fetchStatus === "fetching";
   const isAnyAuthFlowLoading = isLoading || oauthLoadingProvider !== null;
-  const typedErrors = errors;
+  const typedErrors = errors as unknown as ClerkErrorPayload | undefined;
   const globalMessages = useMemo(
     () =>
       (typedErrors?.global ?? [])
@@ -72,13 +114,39 @@ export default function CustomSignInFlow() {
     [typedErrors],
   );
 
-  const needsClientTrust = signIn.status === "needs_client_trust";
+  const needsClientTrust = signIn?.status === "needs_client_trust";
+  const needsSecondFactor = signIn?.status === "needs_second_factor";
+  const needsMfaVerification = needsClientTrust || needsSecondFactor;
   const preselectedOAuthProvider = useMemo(
     () => getOAuthProviderFromParam(searchParams.get("provider")),
     [searchParams],
   );
 
+  const resolveMfaStrategy = () =>
+    getSupportedCodeStrategy(
+      (signIn?.supportedSecondFactors ?? []) as Array<{
+        strategy?: string;
+      }>,
+    );
+
+  const sendSecondFactorCode = async (strategy: MfaCodeStrategy) => {
+    if (!signIn) {
+      return;
+    }
+
+    if (strategy === "phone_code") {
+      await signIn.mfa.sendPhoneCode();
+      return;
+    }
+
+    await signIn.mfa.sendEmailCode();
+  };
+
   const startOAuthSignIn = async (provider: OAuthProvider) => {
+    if (!signIn) {
+      return;
+    }
+
     setStatusMessage("");
     setOauthLoadingProvider(provider);
 
@@ -108,7 +176,7 @@ export default function CustomSignInFlow() {
   };
 
   useEffect(() => {
-    if (!preselectedOAuthProvider || oauthAutoStartedRef.current) {
+    if (!signIn || !preselectedOAuthProvider || oauthAutoStartedRef.current) {
       return;
     }
 
@@ -130,14 +198,15 @@ export default function CustomSignInFlow() {
   }, [preselectedOAuthProvider, signIn]);
 
   const finishSignIn = async () => {
+    if (!signIn) {
+      return;
+    }
+
     await signIn.finalize({
       navigate: ({ session, decorateUrl }) => {
-        if (session?.currentTask) {
-          setStatusMessage("Additional session task required before redirect.");
-          return;
-        }
-
-        const url = decorateUrl("/");
+        const target =
+          getTaskNavigationTarget(session as SessionWithTask) ?? "/studio";
+        const url = decorateUrl(target);
         if (url.startsWith("http")) {
           window.location.href = url;
           return;
@@ -151,6 +220,10 @@ export default function CustomSignInFlow() {
   const handleSignIn = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setStatusMessage("");
+
+    if (!signIn) {
+      return;
+    }
 
     const { error } = await signIn.password({
       emailAddress,
@@ -166,25 +239,33 @@ export default function CustomSignInFlow() {
       return;
     }
 
-    if (signIn.status === "needs_client_trust") {
-      const emailCodeFactor = signIn.supportedSecondFactors.find(
-        (factor) => factor.strategy === "email_code",
-      );
+    if (
+      signIn.status === "needs_client_trust" ||
+      signIn.status === "needs_second_factor"
+    ) {
+      const strategy = resolveMfaStrategy();
 
-      if (!emailCodeFactor) {
+      if (!strategy) {
         setStatusMessage(
-          "Client trust is required, but email code is unavailable.",
+          "A supported second factor is required to continue sign-in.",
         );
         return;
       }
 
-      await signIn.mfa.sendEmailCode();
-      setStatusMessage("Verification code sent. Check your inbox to continue.");
-      return;
-    }
+      setActiveMfaStrategy(strategy);
 
-    if (signIn.status === "needs_second_factor") {
-      setStatusMessage("A second factor is required for this account.");
+      try {
+        await sendSecondFactorCode(strategy);
+        setStatusMessage(
+          strategy === "phone_code"
+            ? "Verification code sent. Check your phone to continue."
+            : "Verification code sent. Check your inbox to continue.",
+        );
+      } catch {
+        setStatusMessage(
+          "Unable to send a verification code right now. Please retry.",
+        );
+      }
       return;
     }
 
@@ -195,7 +276,31 @@ export default function CustomSignInFlow() {
     event.preventDefault();
     setStatusMessage("");
 
-    await signIn.mfa.verifyEmailCode({ code });
+    if (!signIn) {
+      return;
+    }
+
+    const strategy = activeMfaStrategy ?? resolveMfaStrategy();
+    if (!strategy) {
+      setStatusMessage("No supported second factor is available.");
+      return;
+    }
+
+    setActiveMfaStrategy(strategy);
+
+    try {
+      const result =
+        strategy === "phone_code"
+          ? await signIn.mfa.verifyPhoneCode({ code })
+          : await signIn.mfa.verifyEmailCode({ code });
+
+      if (result.error) {
+        return;
+      }
+    } catch {
+      setStatusMessage("Verification failed. Please try again.");
+      return;
+    }
 
     if (signIn.status === "complete") {
       await finishSignIn();
@@ -209,9 +314,13 @@ export default function CustomSignInFlow() {
   const passwordError = getFieldError(typedErrors, "password");
   const codeError = getFieldError(typedErrors, "code");
 
+  if (!signIn) {
+    return <div className="text-zinc-400 text-sm">Loading sign-in...</div>;
+  }
+
   return (
     <div className="space-y-5">
-      {needsClientTrust ? (
+      {needsMfaVerification ? (
         <form className="space-y-4" onSubmit={handleVerifyCode}>
           <div className="space-y-2">
             <label
@@ -250,7 +359,27 @@ export default function CustomSignInFlow() {
           <div className="flex flex-wrap items-center gap-2 text-xs text-zinc-400">
             <button
               type="button"
-              onClick={() => signIn.mfa.sendEmailCode()}
+              onClick={async () => {
+                const strategy = activeMfaStrategy ?? resolveMfaStrategy();
+
+                if (!strategy) {
+                  setStatusMessage("No supported second factor is available.");
+                  return;
+                }
+
+                try {
+                  await sendSecondFactorCode(strategy);
+                  setStatusMessage(
+                    strategy === "phone_code"
+                      ? "Verification code sent. Check your phone to continue."
+                      : "Verification code sent. Check your inbox to continue.",
+                  );
+                } catch {
+                  setStatusMessage(
+                    "Unable to resend verification code right now. Please retry.",
+                  );
+                }
+              }}
               disabled={isAnyAuthFlowLoading}
               className="border border-white/12 px-3 py-2 uppercase tracking-[0.14em] transition-colors hover:border-white/30 hover:text-white"
             >
@@ -258,10 +387,15 @@ export default function CustomSignInFlow() {
             </button>
             <button
               type="button"
-              onClick={() => {
-                signIn.reset();
+              onClick={async () => {
+                try {
+                  await signIn.reset();
+                } catch {
+                  // Keep local state reset even if the remote reset call fails.
+                }
                 setCode("");
                 setStatusMessage("");
+                setActiveMfaStrategy(null);
               }}
               disabled={isAnyAuthFlowLoading}
               className="border border-white/12 px-3 py-2 uppercase tracking-[0.14em] transition-colors hover:border-white/30 hover:text-white"
@@ -389,8 +523,8 @@ export default function CustomSignInFlow() {
 
       {globalMessages.length > 0 ? (
         <ul className="space-y-1 border border-red-500/40 bg-red-950/30 px-3 py-2 text-xs text-red-200">
-          {globalMessages.map((message) => (
-            <li key={message}>{message}</li>
+          {globalMessages.map((message, index) => (
+            <li key={`globalMessage-${index}`}>{message}</li>
           ))}
         </ul>
       ) : null}

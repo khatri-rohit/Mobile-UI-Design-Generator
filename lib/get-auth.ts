@@ -230,34 +230,79 @@ export async function requireAuthContext(
   const clerkUser = await fetchClerkUser(clerkUserId);
 
   const fallbackEmail = `${clerkUserId}@${EMAIL_FALLBACK_DOMAIN}`;
-  const email = extractPrimaryEmail(clerkUser) ?? fallbackEmail;
-  const name = extractDisplayName(clerkUser, email);
-  const provider = inferProvider(clerkUser);
+  const clerkEmail = extractPrimaryEmail(clerkUser);
+  const resolvedEmail = clerkEmail ?? fallbackEmail;
+  const hasClerkProfileData = Boolean(clerkUser && clerkEmail);
+  const profileName = extractDisplayName(clerkUser, resolvedEmail);
+  const profileProvider = inferProvider(clerkUser);
   const { organizationId, organizationSlug } =
     extractOrganizationClaims(sessionClaims);
 
-  const user = await prisma.user.upsert({
+  const existingByClerkUserId = await prisma.user.findUnique({
     where: {
       clerkUserId,
     },
-    create: {
-      clerkUserId,
-      email,
-      name,
-      provider,
-      organizationId,
-      organizationSlug,
-      isActive: true,
-    },
-    update: {
-      email,
-      name,
-      provider,
-      organizationId,
-      organizationSlug,
-      isActive: true,
-    },
   });
+
+  const existingByEmailWithoutClerkUserId =
+    !existingByClerkUserId && clerkEmail
+      ? await prisma.user.findFirst({
+          where: {
+            email: clerkEmail,
+            clerkUserId: null,
+          },
+        })
+      : null;
+
+  const user = existingByClerkUserId
+    ? await prisma.user.update({
+        where: {
+          id: existingByClerkUserId.id,
+        },
+        data: {
+          clerkUserId,
+          organizationId,
+          organizationSlug,
+          isActive: true,
+          ...(hasClerkProfileData
+            ? {
+                email: resolvedEmail,
+                name: profileName,
+                provider: profileProvider,
+              }
+            : {}),
+        },
+      })
+    : existingByEmailWithoutClerkUserId
+      ? await prisma.user.update({
+          where: {
+            id: existingByEmailWithoutClerkUserId.id,
+          },
+          data: {
+            clerkUserId,
+            organizationId,
+            organizationSlug,
+            isActive: true,
+            ...(hasClerkProfileData
+              ? {
+                  email: resolvedEmail,
+                  name: profileName,
+                  provider: profileProvider,
+                }
+              : {}),
+          },
+        })
+      : await prisma.user.create({
+          data: {
+            clerkUserId,
+            email: resolvedEmail,
+            name: profileName,
+            provider: hasClerkProfileData ? profileProvider : "EMAIL",
+            organizationId,
+            organizationSlug,
+            isActive: true,
+          },
+        });
 
   const now = new Date();
   const issuedAt = parseJwtTimestamp(sessionClaims?.iat) ?? now;

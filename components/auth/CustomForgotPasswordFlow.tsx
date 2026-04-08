@@ -4,16 +4,34 @@
 import { FormEvent, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useSignIn} from "@clerk/nextjs";
+import { useSignIn } from "@clerk/nextjs";
 
 import { cn } from "@/lib/utils";
 
 type ResetStep = "request" | "verify" | "password";
 
-function getFieldError(
-  errors: any,
-  fieldName: string,
-) {
+type PendingSessionTask = {
+  key?: string;
+  type?: string;
+  path?: string;
+  url?: string;
+  redirectUrl?: string;
+};
+
+type SessionWithTask = {
+  currentTask?: PendingSessionTask | null;
+} | null;
+
+function getTaskNavigationTarget(session: SessionWithTask): string | null {
+  const task = session?.currentTask;
+  if (!task) {
+    return null;
+  }
+
+  return task.redirectUrl ?? task.url ?? task.path ?? null;
+}
+
+function getFieldError(errors: any, fieldName: string) {
   const fieldError = errors?.fields?.[fieldName];
 
   if (!fieldError) {
@@ -39,6 +57,7 @@ export default function CustomForgotPasswordFlow() {
   const [newPassword, setNewPassword] = useState("");
   const [step, setStep] = useState<ResetStep>("request");
   const [statusMessage, setStatusMessage] = useState("");
+  const [isResendingCode, setIsResendingCode] = useState(false);
 
   const isLoading = fetchStatus === "fetching";
   const typedErrors = errors;
@@ -51,14 +70,15 @@ export default function CustomForgotPasswordFlow() {
   );
 
   const finishReset = async () => {
+    if (!signIn) {
+      return;
+    }
+
     await signIn.finalize({
       navigate: ({ session, decorateUrl }) => {
-        if (session?.currentTask) {
-          setStatusMessage("Additional session task required before redirect.");
-          return;
-        }
-
-        const url = decorateUrl("/studio");
+        const target =
+          getTaskNavigationTarget(session as SessionWithTask) ?? "/studio";
+        const url = decorateUrl(target);
         if (url.startsWith("http")) {
           window.location.href = url;
           return;
@@ -73,77 +93,136 @@ export default function CustomForgotPasswordFlow() {
     event.preventDefault();
     setStatusMessage("");
 
-    const createAttempt = await signIn.create({
-      identifier: emailAddress,
-    });
-
-    if (createAttempt.error) {
+    if (!signIn) {
       return;
     }
 
-    const sendCode = await signIn.resetPasswordEmailCode.sendCode();
-    if (sendCode.error) {
-      return;
-    }
+    try {
+      const createAttempt = await signIn.create({
+        identifier: emailAddress,
+      });
 
-    setStep("verify");
-    setStatusMessage(
-      "Reset code sent. Check your email for the verification code.",
-    );
+      if (createAttempt.error) {
+        return;
+      }
+
+      const sendCode = await signIn.resetPasswordEmailCode.sendCode();
+      if (sendCode.error) {
+        return;
+      }
+
+      setStep("verify");
+      setStatusMessage(
+        "Reset code sent. Check your email for the verification code.",
+      );
+    } catch {
+      setStatusMessage("Failed to send reset code. Please try again.");
+    }
   };
 
   const handleVerifyCode = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setStatusMessage("");
 
-    const verifyResult = await signIn.resetPasswordEmailCode.verifyCode({
-      code,
-    });
-
-    if (verifyResult.error) {
+    if (!signIn) {
       return;
     }
 
-    if (signIn.status === "needs_new_password") {
-      setStep("password");
-      setStatusMessage("Code verified. Set a new password to complete reset.");
-      return;
-    }
+    try {
+      const verifyResult = await signIn.resetPasswordEmailCode.verifyCode({
+        code,
+      });
 
-    setStatusMessage("Verification is not complete yet. Please retry.");
+      if (verifyResult.error) {
+        return;
+      }
+
+      if (signIn.status === "needs_new_password") {
+        setStep("password");
+        setStatusMessage(
+          "Code verified. Set a new password to complete reset.",
+        );
+        return;
+      }
+
+      setStatusMessage("Verification is not complete yet. Please retry.");
+    } catch {
+      setStatusMessage("Verification failed. Please try again.");
+    }
   };
 
   const handleSubmitNewPassword = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setStatusMessage("");
 
-    const submitResult = await signIn.resetPasswordEmailCode.submitPassword({
-      password: newPassword,
-    });
-
-    if (submitResult.error) {
+    if (!signIn) {
       return;
     }
 
-    if (signIn.status === "complete") {
-      await finishReset();
-      return;
-    }
+    try {
+      const submitResult = await signIn.resetPasswordEmailCode.submitPassword({
+        password: newPassword,
+      });
 
-    setStatusMessage("Password update is not complete yet. Please retry.");
+      if (submitResult.error) {
+        return;
+      }
+
+      if (signIn.status === "complete") {
+        await finishReset();
+        return;
+      }
+
+      setStatusMessage("Password update is not complete yet. Please retry.");
+    } catch {
+      setStatusMessage("Failed to update password. Please try again.");
+    }
   };
 
   const handleStartOver = async () => {
-    await signIn.reset();
-    setStep("request");
-    setCode("");
-    setNewPassword("");
-    setStatusMessage("");
+    if (!signIn) {
+      return;
+    }
+
+    try {
+      await signIn.reset();
+      setStep("request");
+      setCode("");
+      setNewPassword("");
+      setStatusMessage("");
+    } catch {
+      setStatusMessage("Failed to reset. Please refresh and try again.");
+    }
+  };
+
+  const handleResendCode = async () => {
+    if (!signIn || isResendingCode) {
+      return;
+    }
+
+    setIsResendingCode(true);
+
+    try {
+      const resendResult = await signIn.resetPasswordEmailCode.sendCode();
+      if (resendResult.error) {
+        return;
+      }
+
+      setStatusMessage("Verification code resent.");
+    } catch {
+      setStatusMessage("Failed to resend code. Please try again.");
+    } finally {
+      setIsResendingCode(false);
+    }
   };
 
   const identifierError = getFieldError(typedErrors, "identifier");
   const codeError = getFieldError(typedErrors, "code");
   const passwordError = getFieldError(typedErrors, "password");
+
+  if (!signIn) {
+    return <div className="text-zinc-400 text-sm">Loading reset flow...</div>;
+  }
 
   return (
     <div className="space-y-5">
@@ -224,10 +303,11 @@ export default function CustomForgotPasswordFlow() {
           <div className="flex flex-wrap items-center gap-2 text-xs text-zinc-400">
             <button
               type="button"
-              onClick={() => signIn.resetPasswordEmailCode.sendCode()}
+              onClick={handleResendCode}
+              disabled={isLoading || isResendingCode}
               className="border border-white/12 px-3 py-2 uppercase tracking-[0.14em] transition-colors hover:border-white/30 hover:text-white"
             >
-              Resend code
+              {isResendingCode ? "Sending..." : "Resend code"}
             </button>
             <button
               type="button"
@@ -286,8 +366,8 @@ export default function CustomForgotPasswordFlow() {
 
       {globalMessages.length > 0 ? (
         <ul className="space-y-1 border border-red-500/40 bg-red-950/30 px-3 py-2 text-xs text-red-200">
-          {globalMessages.map((message) => (
-            <li key={message}>{message}</li>
+          {globalMessages.map((message, index) => (
+            <li key={`globalMessage-${index}`}>{message}</li>
           ))}
         </ul>
       ) : null}

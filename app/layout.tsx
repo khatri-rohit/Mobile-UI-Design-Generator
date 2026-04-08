@@ -21,7 +21,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "LOGIC",
   description:
-    "A UI/UX design genertor can help you create stunning designs with ease.",
+    "A UI/UX design generator can help you create stunning designs with ease.",
 };
 
 export default function RootLayout({

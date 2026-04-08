@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
@@ -8,12 +7,29 @@ import { useAuth, useSignUp } from "@clerk/nextjs";
 
 import { cn } from "@/lib/utils";
 
-// type ClerkErrorPayload = {
-//   global?: Array<{ message?: string }>;
-//   fields?: Record<string, { message?: string } | Array<{ message?: string }>>;
-// };
+type ClerkFieldError = { message?: string };
 
-function getFieldError(errors: any, fieldName: string) {
+type ClerkErrorPayload = {
+  global?: ClerkFieldError[];
+  fields?: Record<string, ClerkFieldError | ClerkFieldError[] | undefined>;
+};
+
+type PendingSessionTask = {
+  key?: string;
+  type?: string;
+  path?: string;
+  url?: string;
+  redirectUrl?: string;
+};
+
+type SessionWithTask = {
+  currentTask?: PendingSessionTask | null;
+} | null;
+
+function getFieldError(
+  errors: ClerkErrorPayload | undefined,
+  fieldName: string,
+) {
   const fieldError = errors?.fields?.[fieldName];
 
   if (!fieldError) {
@@ -28,6 +44,15 @@ function getFieldError(errors: any, fieldName: string) {
   }
 
   return fieldError.message ?? "";
+}
+
+function getTaskNavigationTarget(session: SessionWithTask): string | null {
+  const task = session?.currentTask;
+  if (!task) {
+    return null;
+  }
+
+  return task.redirectUrl ?? task.url ?? task.path ?? null;
 }
 
 type OAuthProvider = "google" | "github";
@@ -64,7 +89,7 @@ export default function CustomSignUpFlow() {
 
   const isLoading = fetchStatus === "fetching";
   const isAnyAuthFlowLoading = isLoading || oauthLoadingProvider !== null;
-  const typedErrors = errors;
+  const typedErrors = errors as unknown as ClerkErrorPayload | undefined;
   const globalMessages = useMemo(
     () =>
       (typedErrors?.global ?? [])
@@ -74,9 +99,9 @@ export default function CustomSignUpFlow() {
   );
 
   const isEmailVerificationStep =
-    signUp.status === "missing_requirements" &&
-    signUp.unverifiedFields.includes("email_address") &&
-    signUp.missingFields.length === 0;
+    signUp?.status === "missing_requirements" &&
+    (signUp?.unverifiedFields ?? []).includes("email_address") &&
+    (signUp?.missingFields ?? []).length === 0;
   const preselectedOAuthProvider = useMemo(
     () => getOAuthProviderFromParam(searchParams.get("provider")),
     [searchParams],
@@ -113,6 +138,7 @@ export default function CustomSignUpFlow() {
 
   useEffect(() => {
     if (
+      !signUp ||
       !preselectedOAuthProvider ||
       oauthAutoStartedRef.current ||
       isEmailVerificationStep
@@ -140,12 +166,9 @@ export default function CustomSignUpFlow() {
   const finishSignUp = async () => {
     await signUp.finalize({
       navigate: ({ session, decorateUrl }) => {
-        if (session?.currentTask) {
-          setStatusMessage("Additional session task required before redirect.");
-          return;
-        }
-
-        const url = decorateUrl("/");
+        const target =
+          getTaskNavigationTarget(session as SessionWithTask) ?? "/studio";
+        const url = decorateUrl(target);
         if (url.startsWith("http")) {
           window.location.href = url;
           return;
@@ -160,6 +183,10 @@ export default function CustomSignUpFlow() {
     event.preventDefault();
     setStatusMessage("");
 
+    if (!signUp) {
+      return;
+    }
+
     const { error } = await signUp.password({
       emailAddress,
       password,
@@ -169,17 +196,35 @@ export default function CustomSignUpFlow() {
       return;
     }
 
-    await signUp.verifications.sendEmailCode();
-    setStatusMessage("Verification code sent. Check your inbox to continue.");
+    try {
+      await signUp.verifications.sendEmailCode();
+      setStatusMessage("Verification code sent. Check your inbox to continue.");
+    } catch (sendError) {
+      console.error("Failed to send sign-up verification code", sendError);
+      setStatusMessage("Failed to send verification code. Please try again.");
+    }
   };
 
   const handleVerifyCode = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setStatusMessage("");
 
-    await signUp.verifications.verifyEmailCode({
-      code,
-    });
+    if (!signUp) {
+      return;
+    }
+
+    try {
+      const result = await signUp.verifications.verifyEmailCode({
+        code,
+      });
+
+      if (result.error) {
+        return;
+      }
+    } catch {
+      setStatusMessage("Verification failed. Please try again.");
+      return;
+    }
 
     if (signUp.status === "complete") {
       await finishSignUp();
@@ -189,8 +234,22 @@ export default function CustomSignUpFlow() {
     setStatusMessage("Verification is not complete yet. Please retry.");
   };
 
+  useEffect(() => {
+    if (!signUp) {
+      return;
+    }
+
+    if (isSignedIn || signUp.status === "complete") {
+      router.replace("/studio");
+    }
+  }, [isSignedIn, router, signUp]);
+
+  if (!signUp) {
+    return <div className="text-zinc-400 text-sm">Loading sign-up...</div>;
+  }
+
   if (isSignedIn || signUp.status === "complete") {
-    return null;
+    return <div className="text-zinc-400 text-sm">Redirecting...</div>;
   }
 
   const emailError = getFieldError(typedErrors, "emailAddress");
@@ -239,7 +298,18 @@ export default function CustomSignUpFlow() {
 
           <button
             type="button"
-            onClick={() => signUp.verifications.sendEmailCode()}
+            onClick={async () => {
+              try {
+                await signUp.verifications.sendEmailCode();
+                setStatusMessage(
+                  "Verification code sent. Check your inbox to continue.",
+                );
+              } catch {
+                setStatusMessage(
+                  "Unable to resend code right now. Please retry.",
+                );
+              }
+            }}
             disabled={isAnyAuthFlowLoading}
             className="border border-white/12 px-3 py-2 text-xs uppercase tracking-[0.14em] text-zinc-300 transition-colors hover:border-white/30 hover:text-white"
           >
@@ -359,8 +429,8 @@ export default function CustomSignUpFlow() {
 
       {globalMessages.length > 0 ? (
         <ul className="space-y-1 border border-red-500/40 bg-red-950/30 px-3 py-2 text-xs text-red-200">
-          {globalMessages.map((message) => (
-            <li key={message}>{message}</li>
+          {globalMessages.map((message, index) => (
+            <li key={`globalMessage-${index}`}>{message}</li>
           ))}
         </ul>
       ) : null}
