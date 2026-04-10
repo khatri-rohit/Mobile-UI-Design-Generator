@@ -2,8 +2,9 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono, Inter } from "next/font/google";
 import "./globals.css";
 import { cn } from "@/lib/utils";
-import ClerkProviders from "./providers/clerk";
-import QueryProvider from "./providers/tankstack-query";
+import ClerkProviders from "@/providers/clerk";
+import QueryProvider from "@/providers/tankstack-query";
+import { ProjectsStoreProvider } from "@/providers/zustand-provider";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
 
@@ -20,7 +21,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "LOGIC",
   description:
-    "A UI/UX design generator can help you create stunning designs with ease.",
+    "LOGIC is an AI-powered UI/UX builder that transforms your ideas into stunning designs. With LOGIC, you can effortlessly create beautiful and functional user interfaces for web and mobile applications. Whether you're a designer, developer, or product manager, LOGIC empowers you to bring your vision to life with ease and efficiency.",
 };
 
 export default function RootLayout({
@@ -41,9 +42,11 @@ export default function RootLayout({
       )}
     >
       <body className="min-h-full flex flex-col">
-        <QueryProvider>
-          <ClerkProviders>{children}</ClerkProviders>
-        </QueryProvider>
+        <ProjectsStoreProvider>
+          <QueryProvider>
+            <ClerkProviders>{children}</ClerkProviders>
+          </QueryProvider>
+        </ProjectsStoreProvider>
       </body>
     </html>
   );
