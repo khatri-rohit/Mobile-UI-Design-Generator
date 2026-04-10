@@ -26,6 +26,14 @@ type SessionWithTask = {
   currentTask?: PendingSessionTask | null;
 } | null;
 
+type CreateProjectResponse = {
+  error: boolean;
+  message?: string;
+  data?: {
+    projectId?: string;
+  } | null;
+};
+
 function getFieldError(
   errors: ClerkErrorPayload | undefined,
   fieldName: string,
@@ -79,6 +87,7 @@ export default function CustomSignUpFlow() {
   const { isSignedIn } = useAuth();
   const { signUp, errors, fetchStatus } = useSignUp();
   const oauthAutoStartedRef = useRef(false);
+  const postAuthHandledRef = useRef(false);
 
   const [emailAddress, setEmailAddress] = useState("");
   const [password, setPassword] = useState("");
@@ -106,6 +115,29 @@ export default function CustomSignUpFlow() {
     () => getOAuthProviderFromParam(searchParams.get("provider")),
     [searchParams],
   );
+
+  const createProjectFromPrompt = async (
+    prompt: string,
+  ): Promise<string | null> => {
+    const response = await fetch("/api/projects", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ prompt }),
+    });
+
+    const payload = (await response.json()) as CreateProjectResponse;
+
+    if (!response.ok || payload.error) {
+      throw new Error(
+        payload.message ||
+          `Failed to create project: ${response.status} ${response.statusText}`,
+      );
+    }
+
+    return payload.data?.projectId ?? null;
+  };
 
   const startOAuthSignUp = async (provider: OAuthProvider) => {
     setStatusMessage("");
@@ -167,8 +199,14 @@ export default function CustomSignUpFlow() {
     await signUp.finalize({
       navigate: ({ session, decorateUrl }) => {
         const target =
-          getTaskNavigationTarget(session as SessionWithTask) ?? "/studio";
+          getTaskNavigationTarget(session as SessionWithTask) ?? "/";
         const url = decorateUrl(target);
+
+        // Keep the user on this page while we provision the first project after session hydration.
+        if (sessionStorage.getItem("initialPrompt")?.trim()) {
+          return;
+        }
+
         if (url.startsWith("http")) {
           window.location.href = url;
           return;
@@ -235,13 +273,37 @@ export default function CustomSignUpFlow() {
   };
 
   useEffect(() => {
-    if (!signUp) {
+    if (!signUp || !isSignedIn || postAuthHandledRef.current) {
       return;
     }
 
-    if (isSignedIn || signUp.status === "complete") {
-      router.replace("/studio");
+    postAuthHandledRef.current = true;
+
+    const initialPrompt = sessionStorage.getItem("initialPrompt")?.trim();
+
+    if (!initialPrompt) {
+      router.replace("/");
+      return;
     }
+
+    void createProjectFromPrompt(initialPrompt)
+      .then((projectId) => {
+        sessionStorage.removeItem("initialPrompt");
+
+        if (projectId) {
+          router.replace(`/studio/${projectId}`);
+          return;
+        }
+
+        router.replace("/");
+      })
+      .catch((error: unknown) => {
+        console.error("Failed to create post-sign-up project", error);
+        setStatusMessage(
+          "Account created, but project setup failed. You can create one from the dashboard.",
+        );
+        router.replace("/");
+      });
   }, [isSignedIn, router, signUp]);
 
   if (!signUp) {

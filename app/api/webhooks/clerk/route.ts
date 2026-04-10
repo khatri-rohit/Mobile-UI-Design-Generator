@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyWebhook } from "@clerk/nextjs/webhooks";
-import type { UserJSON, WebhookEvent } from "@clerk/nextjs/server";
+import { type UserJSON, type WebhookEvent } from "@clerk/nextjs/server";
 
 import logger from "@/lib/logger";
 import prisma from "@/lib/prisma";
@@ -107,6 +107,14 @@ function mapSessionEventToStatus(eventType: string): SessionStatus | null {
   return null;
 }
 
+function isUniqueConstraintError(error: unknown): boolean {
+  if (!error || typeof error !== "object") {
+    return false;
+  }
+
+  return "code" in error && (error as { code?: string }).code === "P2002";
+}
+
 async function upsertUserFromWebhookData(
   tx: Prisma.TransactionClient,
   userData: UserJSON,
@@ -120,24 +128,75 @@ async function upsertUserFromWebhookData(
   const name = extractDisplayName(userData, email);
   const provider = inferProvider(userData.external_accounts);
 
-  return tx.user.upsert({
-    where: {
-      clerkUserId,
-    },
-    create: {
-      clerkUserId,
-      email,
-      name,
-      provider,
-      isActive: true,
-    },
-    update: {
-      email,
-      name,
-      provider,
-      isActive: true,
-    },
-  });
+  try {
+    return await tx.user.upsert({
+      where: {
+        clerkUserId,
+      },
+      create: {
+        clerkUserId,
+        email,
+        name,
+        provider,
+        isActive: true,
+      },
+      update: {
+        email,
+        name,
+        provider,
+        isActive: true,
+      },
+    });
+  } catch (error) {
+    if (!isUniqueConstraintError(error)) {
+      throw error;
+    }
+
+    const existingByEmail = await tx.user.findUnique({
+      where: {
+        email,
+      },
+    });
+
+    if (!existingByEmail) {
+      throw error;
+    }
+
+    if (
+      existingByEmail.clerkUserId &&
+      existingByEmail.clerkUserId !== clerkUserId
+    ) {
+      logger.warn("Skipping Clerk user relink due email collision", {
+        email,
+        incomingClerkUserId: clerkUserId,
+        existingClerkUserId: existingByEmail.clerkUserId,
+      });
+
+      return await tx.user.update({
+        where: {
+          id: existingByEmail.id,
+        },
+        data: {
+          name,
+          provider,
+          isActive: true,
+        },
+      });
+    }
+
+    return await tx.user.update({
+      where: {
+        id: existingByEmail.id,
+      },
+      data: {
+        clerkUserId,
+        email,
+        name,
+        provider,
+        isActive: true,
+      },
+    });
+  }
 }
 
 async function ensureUserForSession(
@@ -146,7 +205,7 @@ async function ensureUserForSession(
 ) {
   const fallbackEmail = `${clerkUserId}@clerk.local`;
 
-  return tx.user.upsert({
+  return await tx.user.upsert({
     where: {
       clerkUserId,
     },
@@ -215,12 +274,17 @@ export async function POST(req: NextRequest) {
           const clerkUserId = evt.data?.id;
           if (typeof clerkUserId === "string" && clerkUserId.length > 0) {
             // Soft delete the user in our database to preserve historical data and relations, but mark them as inactive
-            await tx.user.updateMany({
+            // await tx.user.updateMany({
+            //   where: {
+            //     clerkUserId,
+            //   },
+            //   data: {
+            //     isActive: false,
+            //   },
+            // });
+            await await tx.user.deleteMany({
               where: {
                 clerkUserId,
-              },
-              data: {
-                isActive: false,
               },
             });
 

@@ -196,12 +196,12 @@ const Dashboard = () => {
       // Ignore storage failures; studio still has URL fallbacks for minimal state.
     }
 
-    const params = new URLSearchParams({
-      platform,
-      model: selectedModel,
-    });
+    // const params = new URLSearchParams({
+    //   platform,
+    //   model: selectedModel,
+    // });
 
-    router.push(`/studio?${params.toString()}`);
+    router.push("/studio");
   };
 
   useEffect(() => {
