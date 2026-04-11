@@ -257,7 +257,7 @@ export default function CustomSignUpFlow() {
       return;
     }
 
-    void createProjectFromPrompt({ prompt: initialPrompt })
+    void createProjectFromPrompt({ prompt: initialPrompt, platform: "web" })
       .then((project) => {
         sessionStorage.removeItem("initialPrompt");
 

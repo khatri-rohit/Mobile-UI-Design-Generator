@@ -176,10 +176,16 @@ export async function POST(req: NextRequest) {
       eventType: "generation.requested",
     });
 
-    logger.info("Accepted authenticated generation request", {
-      appUserId: authContext.appUserId,
-      clerkUserId: authContext.clerkUserId,
-    });
+    if (!authContext.appUserId) {
+      return NextResponse.json(
+        {
+          error: true,
+          message: "Unauthorized: Missing user ID in auth context",
+          data: null,
+        },
+        { status: 401 },
+      );
+    }
 
     const {
       prompt,

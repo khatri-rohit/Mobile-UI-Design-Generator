@@ -40,6 +40,7 @@ import {
 } from "lucide-react";
 import SelectModel from "@/components/SelectModel";
 import { cn } from "@/lib/utils";
+import ProjectMenuPanel from "@/components/projects/TopMenu";
 
 const STUDIO_PROMPT_STORAGE_KEY = "uiuxbuilder:studioPrompt";
 
@@ -225,7 +226,7 @@ const StudioPage = () => {
       });
 
       sessionStorage.removeItem(STUDIO_PROMPT_STORAGE_KEY); // Clear stored prompt on new generation attempt
-      sessionStorage.removeItem("uiuxbuilder:selectedModel");
+      sessionStorage.removeItem("uiuxbuilder:selectedModel"); // Clear stored model selection
       setPrompt("");
 
       logger.info("Generation request sent. Awaiting response...");
@@ -378,6 +379,7 @@ const StudioPage = () => {
   }
 
   const handleMount = (mountedEditor: Editor) => {
+    if (!mountedEditor) return;
     editorRef.current = mountedEditor; // always current, never stale
     mountedEditor.updateInstanceState({ isGridMode: true });
   };
@@ -395,7 +397,32 @@ const StudioPage = () => {
         handleGenerate();
       }
     }
-  }, [window, editorRef.current, handleMount]); // run once on mount, and whenever the stored prompt changes (e.g., from another tab)
+  }, [editorRef.current, handleMount]); // run once on mount, and whenever the stored prompt changes (e.g., from another tab)
+
+  // useLayoutEffect(() => {
+  //   handleMount(editorRef.current!);
+  //   if (editorRef.current) {
+  //     if (typeof window !== "undefined") {
+  //       const storedPrompt = sessionStorage.getItem(STUDIO_PROMPT_STORAGE_KEY);
+  //       if (storedPrompt && storedPrompt.trim().length !== 0) {
+  //         setModel(
+  //           sessionStorage.getItem("uiuxbuilder:selectedModel") ??
+  //             DASHBOARD_MODEL_ALIASES[0],
+  //         );
+  //         setPrompt(storedPrompt);
+  //         handleGenerate();
+
+  //         sessionStorage.removeItem(STUDIO_PROMPT_STORAGE_KEY); // Clear stored prompt on new generation attempt
+  //         sessionStorage.removeItem("uiuxbuilder:selectedModel"); // Clear stored model selection
+  //       }
+  //     }
+  //   }
+  //   return () => {
+  //     if (editorRef.current) {
+  //       editorRef.current.updateInstanceState({ isGridMode: false });
+  //     }
+  //   };
+  // }, [editorRef.current]); // ensure editor is ready before any updates
 
   return (
     <div
@@ -410,7 +437,7 @@ const StudioPage = () => {
       )}
     >
       {/* Tldraw Infinite Canvas */}
-      <div className="absolute inset-0">
+      <div className="absolute inset-0 z-40">
         <Tldraw
           shapeUtils={shapeUtils}
           components={components}
@@ -426,7 +453,10 @@ const StudioPage = () => {
         />
       </div>
 
-      <div className="pointer-events-none absolute inset-0">
+      <ProjectMenuPanel />
+
+      {/* Prompt Input */}
+      <div className="pointer-events-none absolute inset-0 z-50">
         <div className="pointer-events-auto absolute bottom-4 left-1/2 w-[min(980px,calc(100%-1.5rem))] -translate-x-1/2 rounded-md border border-input bg-card/90 p-2.5 shadow-2xl shadow-black/30 backdrop-blur-[1px]">
           <div className="mb-2 flex items-center justify-between gap-3">
             <div className="flex items-center gap-1 border border-input bg-muted p-1">

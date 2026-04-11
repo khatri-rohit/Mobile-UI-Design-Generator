@@ -234,6 +234,7 @@ const SideBar = ({
                 type="button"
                 className="logic-feed-item group w-full overflow-hidden rounded-lg border border-border bg-card/40 p-2 text-left hover:border-muted-foreground hover:bg-muted/40 hover:-translate-y-0.5 transition-all duration-300 cursor-pointer"
                 {...fadeLeft(0.12 + index * 0.04)}
+                onMouseEnter={() => router.prefetch(`/projects/${project.id}`)}
                 onClick={() => handleOpenProject(project.id)}
               >
                 <div className="flex items-start gap-3">
@@ -367,6 +368,9 @@ const SideBar = ({
                     type="button"
                     className="logic-feed-item group w-full overflow-hidden rounded-lg border border-border bg-card/40 p-2 text-left hover:border-muted-foreground hover:bg-muted/40 hover:-translate-y-1 hover:mb-3 transition-all duration-300 cursor-pointer"
                     {...fadeLeft(0.12 + index * 0.04)}
+                    onMouseEnter={() =>
+                      router.prefetch(`/projects/${project.id}`)
+                    }
                     onClick={() => handleOpenProject(project.id)}
                   >
                     <div className="flex items-start gap-3">
