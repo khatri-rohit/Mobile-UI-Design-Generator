@@ -8,7 +8,6 @@ import type { LucideIcon } from "lucide-react";
 import {
   ArrowUp,
   Bolt,
-  Code2,
   Layers,
   Menu,
   Mic,
@@ -35,6 +34,7 @@ import {
   clerkUserProfileAppearance,
 } from "@/lib/clerkAppearance";
 import SideBar from "./SideBar";
+import { useUserActivityStore } from "@/providers/zustand-provider";
 
 const STUDIO_PROMPT_STORAGE_KEY = "uiuxbuilder:studioPrompt";
 
@@ -53,25 +53,18 @@ const quickActions: Array<{
   prompt: string;
   platform: DashboardPlatform;
 }> = [
-  // {
-  //   label: "Mobile friendly home...",
-  //   icon: Smartphone,
-  //   prompt:
-  //     "Design a mobile-first homepage with onboarding, social proof, and a clear CTA section.",
-  //   platform: "mobile",
-  // },
+  {
+    label: "Mobile friendly home...",
+    icon: Smartphone,
+    prompt:
+      "Design a mobile-first homepage with onboarding, social proof, and a clear CTA section.",
+    platform: "mobile",
+  },
   {
     label: "Layered dashboard...",
     icon: Layers,
     prompt:
       "Build a layered analytics dashboard with KPI cards, trend charts, and a filter sidebar.",
-    platform: "web",
-  },
-  {
-    label: "React structure scaffold...",
-    icon: Code2,
-    prompt:
-      "Generate a clean React app scaffold with reusable components, routes, and design tokens.",
     platform: "web",
   },
   {
@@ -84,11 +77,13 @@ const quickActions: Array<{
 ];
 
 const Dashboard = () => {
+  const spec = useUserActivityStore((state) => state.spec);
+  const setSpec = useUserActivityStore((state) => state.setSpec);
+
   const router = useRouter();
   const shouldReduceMotion = useReducedMotion();
   const commandInputRef = useRef<HTMLInputElement | null>(null);
 
-  const [platform, setPlatform] = useState<DashboardPlatform>("web");
   const [command, setCommand] = useState("");
   const [selectedModel, setSelectedModel] = useState("gemma4:31b-cloud");
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -124,7 +119,7 @@ const Dashboard = () => {
 
   const handleQuickAction = (action: (typeof quickActions)[number]) => {
     setCommand(action.prompt);
-    setPlatform(action.platform);
+    setSpec(action.platform);
 
     requestAnimationFrame(() => {
       commandInputRef.current?.focus();
@@ -313,14 +308,14 @@ const Dashboard = () => {
               <div className="border border-input bg-card/80 shadow-2xl shadow-black/30">
                 <div className="flex items-center gap-2 border-b border-border px-3 py-2">
                   <Button
-                    variant={platform === "web" ? "secondary" : "ghost"}
+                    variant={spec === "web" ? "secondary" : "ghost"}
                     size="xs"
                     className={cn(
                       "h-7 px-2",
-                      platform === "mobile" && "text-muted-foreground",
+                      spec === "mobile" && "text-muted-foreground",
                     )}
-                    onClick={() => setPlatform("web")}
-                    aria-pressed={platform === "web"}
+                    onClick={() => setSpec("web")}
+                    aria-pressed={spec === "web"}
                   >
                     <Monitor data-icon="inline-start" />
                     <span
@@ -333,14 +328,14 @@ const Dashboard = () => {
                     </span>
                   </Button>
                   <Button
-                    variant={platform === "mobile" ? "secondary" : "ghost"}
+                    variant={spec === "mobile" ? "secondary" : "ghost"}
                     size="xs"
                     className={cn(
                       "h-7 px-2",
-                      platform === "web" && "text-muted-foreground",
+                      spec === "web" && "text-muted-foreground",
                     )}
-                    onClick={() => setPlatform("mobile")}
-                    aria-pressed={platform === "mobile"}
+                    onClick={() => setSpec("mobile")}
+                    aria-pressed={spec === "mobile"}
                   >
                     <Smartphone data-icon="inline-start" />
                     <span
@@ -391,22 +386,20 @@ const Dashboard = () => {
                       <SelectTrigger
                         size="sm"
                         className={cn(
-                          "h-8 min-w-32 border-input bg-muted text-[10px] tracking-[0.16em] uppercase",
+                          "h-8 min-w-35 border-input bg-muted text-[10px] tracking-[0.16em] uppercase",
                           mono.className,
                         )}
                       >
-                        <SelectValue placeholder="3.0 FLASH" />
+                        <SelectValue placeholder="gemma4" />
                       </SelectTrigger>
-                      <SelectContent className="mt-10 min-w-32 border border-input bg-muted text-foreground">
+                      <SelectContent className="mt-10 min-w-35 border border-input bg-muted text-foreground">
                         <SelectGroup>
                           <SelectItem value="gemma4:31b-cloud">
-                            3.0 FLASH
+                            gemma4
                           </SelectItem>
-                          <SelectItem value="gpt-oss:120b-cloud">
-                            3.0 PRO
-                          </SelectItem>
+                          <SelectItem value="llama3.1:8b">llama3.1</SelectItem>
                           <SelectItem value="deepseek-v3.1:671b-cloud">
-                            4.0 ULTRA
+                            deepseek-v3.1
                           </SelectItem>
                         </SelectGroup>
                       </SelectContent>
