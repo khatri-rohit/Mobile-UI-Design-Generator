@@ -7,7 +7,7 @@ export interface ApiResponse<T> {
 
 export type ProjectDetail = {
   id: string;
-  title: string | null;
+  title: string;
   // description: string | null;
   initialPrompt: string;
   status: "PENDING" | "GENERATING" | "ACTIVE" | "ARCHIVED";

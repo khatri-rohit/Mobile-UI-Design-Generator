@@ -537,6 +537,7 @@ const StudioPage = () => {
         break;
     }
   }
+  const hasInitiatedGenerationRef = useRef(false);
 
   useEffect(() => {
     if (projectLoading || isError) return;
@@ -546,7 +547,8 @@ const StudioPage = () => {
       logger.error("Project not found");
       return;
     }
-    if (project.status === "PENDING") {
+    if (project.status === "PENDING" && !hasInitiatedGenerationRef.current) {
+      hasInitiatedGenerationRef.current = true;
       handleGenerate();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
