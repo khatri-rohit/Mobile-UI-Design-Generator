@@ -16,24 +16,22 @@ import { isAuthError, requireAuthContext } from "@/lib/get-auth";
 
 export const runtime = "nodejs";
 
-const STAGE1_MODELS = ["llama3.2-vision:11b", "llama3.1:8b"];
+const STAGE1_MODELS = ["deepseek-v3.2:cloud"];
 // const STAGE1_MODELS = ["gpt-oss:120b-cloud"];
 // const STAGE2_MODELS = ["gpt-oss:120b-cloud"];
 const STAGE2_MODELS = [
-  "llama3.1:8b",
-  "mistral:7b",
-  "gpt-oss:120b-cloud",
-  "llama3.2-vision:11b",
-  "deepseek-v3.1:671b-cloud",
+  "deepseek-v3.2:cloud",
+  "gpt-oss:120b",
+  // "llama3.2-vision:11b",
+  "deepseek-v3.1:671b",
 ];
 const STAGE3_MODELS = [
-  "gemma4:31b-cloud",
-  "deepseek-v3.1:671b-cloud",
-  // "qwen3.5:9b",
-  "gpt-oss:120b-cloud",
-  "llama3.2-vision:11b",
-  "llama3.1:8b",
-  "mistral:7b",
+  "gemma4:31b",
+  "deepseek-v3.1:671b",
+  "qwen3.5",
+  "gpt-oss:120b",
+  "deepseek-v3.2:cloud",
+  // "mistral:7b",
 ];
 
 function normalizePlatform(value: unknown): GenerationPlatform {
