@@ -1,60 +1,49 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
 import {
   Suspense,
   useCallback,
   useEffect,
-  useLayoutEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
 import * as htmlToImage from "html-to-image";
 import { JetBrains_Mono } from "next/font/google";
-import {
-  createShapeId,
-  TLComponents,
-  type Editor,
-  Tldraw,
-  useEditor,
-  useValue,
-  TLShapeId,
-  TLUiToolsContextType,
-  DefaultToolbar,
-  TldrawUiMenuGroup,
-  HandToolbarItem,
-  SelectToolbarItem,
-  TldrawUiMenuItem,
-} from "tldraw";
-import "tldraw/tldraw.css";
 
-import { PhoneFrameShapeUtil } from "@/components/shapes/PhoneFrameShapeUtil";
-import logger from "@/lib/logger";
+import { CanvasFrame } from "@/components/canvas/CanvasFrame";
+import {
+  InfiniteCanvas,
+  InfiniteCanvasHandle,
+} from "@/components/canvas/InfiniteCanvas";
+import {
+  Transform,
+  FrameRect,
+} from "@/components/canvas/hooks/useCanvasTransform";
+import { usePointerMode } from "@/components/canvas/hooks/usePointerMode";
+import { CanvasFrameData } from "@/components/canvas/types";
+import { Button } from "@/components/ui/button";
+import SelectModel from "@/components/SelectModel";
+import ProjectMenuPanel from "@/components/projects/TopMenu";
+import {
+  useProjectCanvasStateUpdateMutation,
+  useProjectDeleteMutation,
+  useProjectQuery,
+  useProjectStatusUpdateMutation,
+  useProjectThumbnailUpdateMutation,
+} from "@/lib/projects/queries";
+import { useUserActivityStore } from "@/providers/zustand-provider";
+import { Monitor, Smartphone, Sparkles } from "lucide-react";
+import { useParams, useRouter } from "next/navigation";
+
+import { CanvasSnapshotV1, isCanvasSnapshotV1 } from "@/lib/canvas-state";
 import {
   getGenerationLayout,
   getInitialDimensionsForPlatform,
 } from "@/lib/canvasLayout";
-import { GenerationPlatform } from "@/lib/types";
-import { Button } from "@/components/ui/button";
-import {
-  Monitor,
-  Smartphone,
-  Sparkles,
-  SquareDashed,
-  ZoomIn,
-  ZoomOut,
-} from "lucide-react";
-import SelectModel from "@/components/SelectModel";
+import logger from "@/lib/logger";
+import { GenerationPlatform, WebAppSpec } from "@/lib/types";
 import { cn } from "@/lib/utils";
-import ProjectMenuPanel from "@/components/projects/TopMenu";
-import { useParams, useRouter } from "next/navigation";
-import {
-  useProjectDeleteMutation,
-  useProjectThumbnailUpdateMutation,
-  useProjectQuery,
-  useProjectStatusUpdateMutation,
-} from "@/lib/projects/queries";
-import { useUserActivityStore } from "@/providers/zustand-provider";
 
 const DASHBOARD_MODEL_ALIASES: string[] = [
   "gemma4:31b",
@@ -69,131 +58,38 @@ const mono = JetBrains_Mono({
   weight: ["400", "700"],
 });
 
-const components: TLComponents = {
-  Background: () => (
-    <div
-      className="tl-background"
-      style={{
-        background:
-          "radial-gradient(circle at 18% 12%, rgba(255,255,255,0.05), transparent 22%), radial-gradient(circle at 82% 84%, rgba(255,255,255,0.04), transparent 26%), var(--background)",
-      }}
-    />
-  ),
-  Grid: ({ size, ...camera }) => {
-    const editor = useEditor();
-    const screenBounds = useValue(
-      "screenBounds",
-      () => editor.getViewportScreenBounds(),
-      [],
-    );
-    const devicePixelRatio = useValue(
-      "dpr",
-      () => editor.getInstanceState().devicePixelRatio,
-      [],
-    );
-    const canvas = useRef<HTMLCanvasElement>(null);
-    editor.user.updateUserPreferences({
-      colorScheme: "dark",
-      color: "#202124",
-    });
+type GenerationEvent =
+  | { type: "spec"; spec: WebAppSpec }
+  | { type: "screen_start"; screen: string }
+  | { type: "screen_reset"; screen: string; reason?: string }
+  | { type: "code_chunk"; screen: string; token: string }
+  | { type: "screen_done"; screen: string }
+  | { type: "done" }
+  | { type: "error"; message: string }
+  | { type: "design_context"; designContext: unknown }
+  | { type: "tree"; tree: unknown };
 
-    useLayoutEffect(() => {
-      if (!canvas.current) return;
-
-      const canvasW = screenBounds.w * devicePixelRatio;
-      const canvasH = screenBounds.h * devicePixelRatio;
-
-      canvas.current.width = canvasW;
-      canvas.current.height = canvasH;
-
-      const ctx = canvas.current.getContext("2d");
-      if (!ctx) return;
-
-      ctx.clearRect(0, 0, canvasW, canvasH);
-
-      const pageViewportBounds = editor.getViewportPageBounds();
-      const startPageX = Math.ceil(pageViewportBounds.minX / size) * size;
-      const startPageY = Math.ceil(pageViewportBounds.minY / size) * size;
-      const endPageX = Math.floor(pageViewportBounds.maxX / size) * size;
-      const endPageY = Math.floor(pageViewportBounds.maxY / size) * size;
-      const numRows = Math.round((endPageY - startPageY) / size);
-      const numCols = Math.round((endPageX - startPageX) / size);
-
-      const majorDot = "#2f2f2f";
-      const majorStep = 2;
-      const majorRadius = 2 * devicePixelRatio;
-
-      for (let row = 0; row <= numRows; row += majorStep) {
-        const pageY = startPageY + row * size;
-        const canvasY = (pageY + camera.y) * camera.z * devicePixelRatio;
-
-        for (let col = 0; col <= numCols; col += majorStep) {
-          const pageX = startPageX + col * size;
-          const canvasX = (pageX + camera.x) * camera.z * devicePixelRatio;
-
-          ctx.beginPath();
-          ctx.fillStyle = majorDot;
-          ctx.arc(canvasX, canvasY, majorRadius, 0, Math.PI * 2);
-          ctx.fill();
-        }
-      }
-    }, [camera, devicePixelRatio, editor, screenBounds, size]);
-
-    return <canvas className="tl-grid" ref={canvas} />;
-  },
-  Toolbar: () => {
-    const editor = useEditor();
-
-    return (
-      <DefaultToolbar orientation={"vertical"}>
-        <TldrawUiMenuGroup id="controls">
-          <SelectToolbarItem />
-          <HandToolbarItem />
-          <TldrawUiMenuItem
-            id="fit-to-screen"
-            onSelect={() => {
-              editor.zoomToFit({ animation: { duration: 200 } });
-            }}
-            label="Fit to screen"
-            icon={<SquareDashed className="size-4" />}
-          />
-          <TldrawUiMenuItem
-            id="zoom-in"
-            onSelect={() => {
-              editor.zoomIn(editor.getViewportScreenCenter(), {
-                animation: { duration: 120 },
-              });
-            }}
-            label="Zoom in"
-            icon={<ZoomIn className="size-4" />}
-          />
-          <TldrawUiMenuItem
-            id="zoom-out"
-            onSelect={() => {
-              editor.zoomOut(editor.getViewportScreenCenter(), {
-                animation: { duration: 200 },
-              });
-            }}
-            label="Zoom out"
-            icon={<ZoomOut className="size-4" />}
-          />
-        </TldrawUiMenuGroup>
-      </DefaultToolbar>
-    );
-  },
-  ContextMenu: null,
-  HelpMenu: null,
-  StylePanel: null, // required
-  MenuPanel: null, // required
-};
-
-const shapeUtils = [PhoneFrameShapeUtil]; // defined OUTSIDE component — never recreate in render
 type ProjectActionId =
   | "all-projects"
   | "share"
   | "download"
   | "edit"
   | "delete";
+
+const CHUNK_FLUSH_MS = 120;
+
+function toFrameRects(frames: CanvasFrameData[]): FrameRect[] {
+  return frames.map((frame) => ({
+    x: frame.x,
+    y: frame.y,
+    w: frame.w,
+    h: frame.h,
+  }));
+}
+
+function normalizePosition(value: number) {
+  return Math.round(value * 100) / 100;
+}
 
 const StudioPage = () => {
   const { id: projectId } = useParams<{ id: string }>();
@@ -207,6 +103,7 @@ const StudioPage = () => {
   } = useProjectQuery(projectId);
 
   const { mutate: updateProjectStatus } = useProjectStatusUpdateMutation();
+  const { mutate: persistCanvasState } = useProjectCanvasStateUpdateMutation();
   const {
     mutate: deleteProject,
     data: deleteProjectData,
@@ -221,97 +118,397 @@ const StudioPage = () => {
   const spec = useUserActivityStore((state) => state.spec);
   const setSpec = useUserActivityStore((state) => state.setSpec);
 
-  const editorRef = useRef<Editor | null>(null);
-  const shapeIdRef = useRef<ReturnType<typeof createShapeId> | null>(null);
-  const screenBuffersRef = useRef<Map<string, string>>(new Map());
-  const frameIdsRef = useRef<Map<string, TLShapeId>>(new Map());
+  const canvasRef = useRef<InfiniteCanvasHandle | null>(null);
   const domRef = useRef<HTMLDivElement | null>(null);
+
+  const frameIdsRef = useRef<Map<string, string>>(new Map());
+  const screenBuffersRef = useRef<Map<string, string>>(new Map());
+  const dirtyScreensRef = useRef<Set<string>>(new Set());
+  const framesRef = useRef<Map<string, CanvasFrameData>>(new Map());
+
+  const chunkFlushIntervalRef = useRef<ReturnType<typeof setInterval> | null>(
+    null,
+  );
   const captureTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const snapshotSaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
   const isUploadingThumbnailRef = useRef(false);
+  const hasInitiatedGenerationRef = useRef(false);
+  const hasHydratedCanvasRef = useRef(false);
 
   const [prompt, setPrompt] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
   const [activeStreamingScreen, setActiveStreamingScreen] = useState<
     string | null
   >(null);
+  const [frames, setFrames] = useState<Map<string, CanvasFrameData>>(
+    () => new Map(),
+  );
+  const [canvasTransform, setCanvasTransform] = useState<Transform>({
+    x: 0,
+    y: 0,
+    k: 1,
+  });
+
+  const {
+    activeFrameId,
+    selectedFrameId,
+    setSelectedFrameId,
+    enterFrame,
+    exitFrame,
+  } = usePointerMode();
 
   const canGenerate = !!prompt.trim() && !isGenerating;
   const models = [...DASHBOARD_MODEL_ALIASES];
 
-  const onCapture = useCallback(
-    async (shapeIds: TLShapeId[]) => {
-      const editor = editorRef.current;
+  const frameList = useMemo(() => {
+    return [...frames.values()].sort((a, b) => {
+      if (a.y !== b.y) return a.y - b.y;
+      return a.x - b.x;
+    });
+  }, [frames]);
 
-      if (!editor || isUploadingThumbnailRef.current || shapeIds.length === 0) {
+  const frameRects = useMemo(() => toFrameRects(frameList), [frameList]);
+
+  const applyFrames = useCallback(
+    (
+      updater: (
+        current: Map<string, CanvasFrameData>,
+      ) => Map<string, CanvasFrameData>,
+    ) => {
+      setFrames((current) => {
+        const next = updater(current);
+        framesRef.current = next;
+        return next;
+      });
+    },
+    [],
+  );
+
+  const buildSnapshot = useCallback((): CanvasSnapshotV1 => {
+    const camera = canvasRef.current?.getTransform() ?? canvasTransform;
+
+    return {
+      version: 1,
+      camera,
+      frames: [...framesRef.current.values()],
+      activeFrameId,
+      selectedFrameId,
+      savedAt: new Date().toISOString(),
+    };
+  }, [activeFrameId, canvasTransform, selectedFrameId]);
+
+  const scheduleSnapshotPersist = useCallback(() => {
+    if (!projectId || !hasHydratedCanvasRef.current) return;
+
+    if (snapshotSaveTimeoutRef.current) {
+      clearTimeout(snapshotSaveTimeoutRef.current);
+    }
+
+    snapshotSaveTimeoutRef.current = setTimeout(() => {
+      snapshotSaveTimeoutRef.current = null;
+      persistCanvasState({ id: projectId, canvasState: buildSnapshot() });
+    }, 450);
+  }, [buildSnapshot, persistCanvasState, projectId]);
+
+  const flushChunkBuffer = useCallback(() => {
+    if (dirtyScreensRef.current.size === 0) return;
+
+    const dirtyScreens = [...dirtyScreensRef.current];
+    dirtyScreensRef.current.clear();
+
+    applyFrames((current) => {
+      let changed = false;
+      const next = new Map(current);
+
+      for (const screenName of dirtyScreens) {
+        const frameId = frameIdsRef.current.get(screenName);
+        if (!frameId) continue;
+
+        const frame = next.get(frameId);
+        if (!frame) continue;
+
+        const bufferedContent = screenBuffersRef.current.get(screenName) ?? "";
+        if (bufferedContent === frame.content && frame.state === "streaming") {
+          continue;
+        }
+
+        changed = true;
+        next.set(frameId, {
+          ...frame,
+          content: bufferedContent,
+          state: "streaming",
+        });
+      }
+
+      return changed ? next : current;
+    });
+  }, [applyFrames]);
+
+  const startChunkFlusher = useCallback(() => {
+    if (chunkFlushIntervalRef.current) return;
+
+    chunkFlushIntervalRef.current = setInterval(() => {
+      flushChunkBuffer();
+    }, CHUNK_FLUSH_MS);
+  }, [flushChunkBuffer]);
+
+  const stopChunkFlusher = useCallback(() => {
+    if (!chunkFlushIntervalRef.current) return;
+
+    clearInterval(chunkFlushIntervalRef.current);
+    chunkFlushIntervalRef.current = null;
+  }, []);
+
+  const onCapture = useCallback(async () => {
+    if (isUploadingThumbnailRef.current || !domRef.current) {
+      return;
+    }
+
+    isUploadingThumbnailRef.current = true;
+    try {
+      const captureTarget = domRef.current;
+
+      const thumbnailBlob = await htmlToImage.toBlob(captureTarget, {
+        cacheBust: false,
+        pixelRatio: 1,
+        backgroundColor: "#111111",
+        filter: (node) => node.tagName !== "IFRAME",
+      });
+
+      if (!thumbnailBlob) {
+        logger.warn("Thumbnail capture returned an empty blob.");
         return;
       }
 
-      isUploadingThumbnailRef.current = true;
-      try {
-        let thumbnailBlob: Blob | null = null;
+      await updateProjectThumbnail({
+        id: projectId,
+        thumbnail: thumbnailBlob,
+      });
+      logger.info("Project thumbnail updated.", { projectId });
+    } catch (error) {
+      logger.error("Failed to capture and upload project thumbnail:", error);
+    } finally {
+      isUploadingThumbnailRef.current = false;
+    }
+  }, [projectId, updateProjectThumbnail]);
 
-        try {
-          const imageExport = await editor.toImage(shapeIds, {
-            format: "png",
-            background: true,
-            padding: 24,
-            pixelRatio: 1,
-          });
-          thumbnailBlob = imageExport.blob;
-        } catch (error) {
-          logger.warn(
-            "Editor image export failed, falling back to html-to-image",
-            error,
-          );
-        }
+  const restoreFromSnapshot = useCallback(
+    (snapshot: CanvasSnapshotV1) => {
+      const restoredFrames = new Map<string, CanvasFrameData>(
+        snapshot.frames.map((frame) => [frame.id, frame]),
+      );
 
-        if (!thumbnailBlob && domRef.current) {
-          const canvasElement = domRef.current.querySelector(".tl-canvas");
-          const captureTarget =
-            (canvasElement as unknown as HTMLElement | null) ?? domRef.current;
+      setFrames(restoredFrames);
+      framesRef.current = restoredFrames;
+      frameIdsRef.current = new Map(
+        snapshot.frames.map((frame) => [frame.screenName, frame.id]),
+      );
 
-          thumbnailBlob = await htmlToImage.toBlob(captureTarget, {
-            // cacheBust appends query strings to blob: URLs and can break iframe-backed previews
-            cacheBust: false,
-            pixelRatio: 1,
-            backgroundColor: "#111111",
-            filter: (node) => node.tagName !== "IFRAME",
-          });
-        }
-
-        if (!thumbnailBlob) {
-          logger.warn("Thumbnail capture returned an empty blob.");
-          return;
-        }
-
-        await updateProjectThumbnail({
-          id: projectId,
-          thumbnail: thumbnailBlob,
-        });
-        logger.info("Project thumbnail updated.", { projectId });
-      } catch (error) {
-        if (error instanceof Event) {
-          const failedTargetSrc =
-            error.target instanceof HTMLImageElement ? error.target.src : null;
-
-          logger.error("Failed to capture and upload project thumbnail:", {
-            type: error.type,
-            failedTargetSrc,
-          });
-        } else {
-          logger.error(
-            "Failed to capture and upload project thumbnail:",
-            error,
-          );
-        }
-      } finally {
-        isUploadingThumbnailRef.current = false;
+      setSelectedFrameId(snapshot.selectedFrameId ?? null);
+      if (snapshot.activeFrameId) {
+        enterFrame(snapshot.activeFrameId);
+      } else {
+        exitFrame();
       }
+
+      requestAnimationFrame(() => {
+        canvasRef.current?.setTransform(snapshot.camera);
+        setCanvasTransform(snapshot.camera);
+      });
     },
-    [projectId, updateProjectThumbnail],
+    [enterFrame, exitFrame, setSelectedFrameId],
   );
 
-  const handleGenerate = async () => {
+  const handleEvent = useCallback(
+    (event: GenerationEvent) => {
+      if (event.type === "design_context" || event.type === "tree") {
+        return;
+      }
+
+      if (event.type === "spec") {
+        const platform: GenerationPlatform =
+          event.spec.platform === "mobile" ? "mobile" : "web";
+
+        const screensWithDims = event.spec.screens.map((screenName) => ({
+          name: screenName,
+          ...getInitialDimensionsForPlatform(screenName, platform),
+        }));
+
+        const positions = getGenerationLayout(
+          [...framesRef.current.values()],
+          screensWithDims,
+        );
+
+        const generationId = crypto.randomUUID();
+        frameIdsRef.current = new Map();
+        screenBuffersRef.current = new Map();
+        dirtyScreensRef.current.clear();
+
+        applyFrames((current) => {
+          const next = new Map(current);
+
+          screensWithDims.forEach((screen, index) => {
+            const frameId = crypto.randomUUID();
+            const position = positions[index];
+
+            frameIdsRef.current.set(screen.name, frameId);
+            next.set(frameId, {
+              id: frameId,
+              screenName: screen.name,
+              platform,
+              x: position.x,
+              y: position.y,
+              w: screen.w,
+              h: screen.h,
+              content: "",
+              editedContent: null,
+              state: "skeleton",
+              thumbnail: null,
+              generationId,
+              error: null,
+            });
+          });
+
+          return next;
+        });
+
+        requestAnimationFrame(() => {
+          const allRects = toFrameRects([...framesRef.current.values()]);
+          canvasRef.current?.zoomToFit(allRects);
+        });
+        scheduleSnapshotPersist();
+        return;
+      }
+
+      if (event.type === "screen_start") {
+        const frameId = frameIdsRef.current.get(event.screen);
+        screenBuffersRef.current.set(event.screen, "");
+        setActiveStreamingScreen(event.screen);
+        startChunkFlusher();
+
+        if (frameId) {
+          applyFrames((current) => {
+            const frame = current.get(frameId);
+            if (!frame || frame.state === "streaming") return current;
+
+            const next = new Map(current);
+            next.set(frameId, {
+              ...frame,
+              state: "streaming",
+            });
+            return next;
+          });
+        }
+        return;
+      }
+
+      if (event.type === "screen_reset") {
+        const frameId = frameIdsRef.current.get(event.screen);
+        screenBuffersRef.current.set(event.screen, "");
+        dirtyScreensRef.current.delete(event.screen);
+        startChunkFlusher();
+
+        if (!frameId) return;
+
+        applyFrames((current) => {
+          const frame = current.get(frameId);
+          if (!frame) return current;
+
+          const next = new Map(current);
+          next.set(frameId, {
+            ...frame,
+            content: "",
+            state: "streaming",
+          });
+          return next;
+        });
+        return;
+      }
+
+      if (event.type === "code_chunk") {
+        const previous = screenBuffersRef.current.get(event.screen) ?? "";
+        screenBuffersRef.current.set(event.screen, previous + event.token);
+        dirtyScreensRef.current.add(event.screen);
+        startChunkFlusher();
+        return;
+      }
+
+      if (event.type === "screen_done") {
+        flushChunkBuffer();
+        const frameId = frameIdsRef.current.get(event.screen);
+        if (!frameId) return;
+
+        const finalCode = screenBuffersRef.current.get(event.screen) ?? "";
+        screenBuffersRef.current.delete(event.screen);
+        dirtyScreensRef.current.delete(event.screen);
+
+        applyFrames((current) => {
+          const frame = current.get(frameId);
+          if (!frame) return current;
+
+          const next = new Map(current);
+          next.set(frameId, {
+            ...frame,
+            state: "done",
+            content: finalCode,
+            error: null,
+          });
+          return next;
+        });
+
+        setActiveStreamingScreen((current) =>
+          current === event.screen ? null : current,
+        );
+        scheduleSnapshotPersist();
+        return;
+      }
+
+      if (event.type === "done") {
+        flushChunkBuffer();
+        stopChunkFlusher();
+        setActiveStreamingScreen(null);
+
+        updateProjectStatus({ id: projectId, status: "ACTIVE" });
+
+        const allRects = toFrameRects([...framesRef.current.values()]);
+        if (allRects.length > 0) {
+          canvasRef.current?.zoomToFit(allRects);
+        }
+
+        if (captureTimeoutRef.current) {
+          clearTimeout(captureTimeoutRef.current);
+        }
+
+        captureTimeoutRef.current = setTimeout(() => {
+          void onCapture();
+          captureTimeoutRef.current = null;
+        }, 2000);
+
+        scheduleSnapshotPersist();
+        return;
+      }
+
+      if (event.type === "error") {
+        stopChunkFlusher();
+        setActiveStreamingScreen(null);
+        updateProjectStatus({ id: projectId, status: "ARCHIVED" });
+      }
+    },
+    [
+      applyFrames,
+      flushChunkBuffer,
+      onCapture,
+      projectId,
+      scheduleSnapshotPersist,
+      startChunkFlusher,
+      stopChunkFlusher,
+      updateProjectStatus,
+    ],
+  );
+
+  const handleGenerate = useCallback(async () => {
     if (!project) {
       logger.error("Project not found");
       return;
@@ -319,12 +516,11 @@ const StudioPage = () => {
 
     setIsGenerating(true);
     setActiveStreamingScreen(null);
-    try {
-      if (!editorRef.current) throw new Error("Editor not initialized");
 
-      // 2. On each token — accumulate and update the shape
-      shapeIdRef.current = null;
+    try {
+      stopChunkFlusher();
       screenBuffersRef.current = new Map();
+      dirtyScreensRef.current.clear();
 
       const response = await fetch("/api/generate", {
         method: "POST",
@@ -332,7 +528,7 @@ const StudioPage = () => {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: model,
+          model,
           prompt: project.status === "PENDING" ? project.initialPrompt : prompt,
           platform: spec ?? "web",
         }),
@@ -340,12 +536,8 @@ const StudioPage = () => {
 
       setPrompt("");
 
-      logger.info("Generation request sent. Awaiting response...");
-
       if (!response.ok || !response.body) {
         const errorData = await response.json();
-
-        logger.error("Error response: ", errorData);
         throw new Error(errorData.message || "Generation failed");
       }
 
@@ -365,145 +557,97 @@ const StudioPage = () => {
 
         for (const line of lines) {
           if (!line.startsWith("data: ")) continue;
-          const raw = line.slice(6).trim();
-          if (raw === "[DONE]") return;
 
-          const event = JSON.parse(raw);
-          handleEvent(event); // <-- pass accumulated as an argument to handleEvent
+          const raw = line.slice(6).trim();
+          if (raw === "[DONE]") {
+            stopChunkFlusher();
+            return;
+          }
+
+          const event = JSON.parse(raw) as GenerationEvent;
+          handleEvent(event);
         }
       }
     } catch (error) {
+      stopChunkFlusher();
       updateProjectStatus({ id: projectId, status: "ARCHIVED" });
       logger.error("Error generating layout:", error);
     } finally {
+      flushChunkBuffer();
+      stopChunkFlusher();
       setActiveStreamingScreen(null);
       setIsGenerating(false);
     }
-  };
+  }, [
+    flushChunkBuffer,
+    handleEvent,
+    model,
+    project,
+    projectId,
+    prompt,
+    spec,
+    stopChunkFlusher,
+    updateProjectStatus,
+  ]);
 
-  function handleEvent(event: any) {
-    const editor = editorRef.current;
-    if (!editor) return;
+  const handleMoveFrame = useCallback(
+    (id: string, nextX: number, nextY: number) => {
+      applyFrames((current) => {
+        const frame = current.get(id);
+        if (!frame) return current;
 
-    if (event.type === "spec") {
-      const spec = event.spec;
-      const platform: GenerationPlatform =
-        spec.platform === "mobile" ? "mobile" : "web";
-      const screensWithDims: Array<{ name: string; w: number; h: number }> =
-        spec.screens.map((screenName: string) => ({
-          name: screenName,
-          ...getInitialDimensionsForPlatform(screenName, platform),
-        }));
-      const positions = getGenerationLayout(editor, screensWithDims);
-      frameIdsRef.current = new Map();
-      screenBuffersRef.current = new Map();
+        const normalizedX = normalizePosition(nextX);
+        const normalizedY = normalizePosition(nextY);
 
-      screensWithDims.forEach((screen, i: number) => {
-        const id = createShapeId();
-        frameIdsRef.current.set(screen.name, id);
-
-        editor.createShape({
-          id,
-          type: "phone-frame",
-          x: positions[i].x,
-          y: positions[i].y,
-          props: {
-            w: screen.w,
-            h: screen.h,
-            screenName: screen.name,
-            platform,
-            content: "",
-            state: "skeleton",
-            srcdoc: "",
-          },
-        });
-      });
-
-      editor.zoomToFit({ animation: { duration: 400 } });
-    } else if (event.type === "screen_start") {
-      const id = frameIdsRef.current.get(event.screen);
-      screenBuffersRef.current.set(event.screen, "");
-      setActiveStreamingScreen(event.screen);
-      if (id)
-        editor.updateShape({
-          id,
-          type: "phone-frame",
-          props: { state: "streaming" },
-        });
-    } else if (event.type === "screen_reset") {
-      const id = frameIdsRef.current.get(event.screen);
-
-      if (!id) return;
-      screenBuffersRef.current.set(event.screen, "");
-      setActiveStreamingScreen(event.screen);
-      editor.updateShape({
-        id,
-        type: "phone-frame",
-        props: {
-          content: "",
-          state: "streaming",
-        },
-      });
-    } else if (event.type === "code_chunk") {
-      const id = frameIdsRef.current.get(event.screen);
-      if (!id) return;
-      const previous = screenBuffersRef.current.get(event.screen) ?? "";
-      const next = previous + event.token;
-      screenBuffersRef.current.set(event.screen, next);
-      editor.updateShape({
-        id,
-        type: "phone-frame",
-        props: {
-          content: next,
-          state: "streaming",
-        },
-      });
-    }
-
-    if (event.type === "screen_done") {
-      const id = frameIdsRef.current.get(event.screen);
-      if (!id) return;
-      // The shape's useEffect watches these props and mounts Sandpack
-      editor.updateShape({
-        id,
-        type: "phone-frame",
-        props: {
-          state: "done",
-          content: screenBuffersRef.current.get(event.screen),
-        },
-      });
-
-      screenBuffersRef.current.delete(event.screen);
-      setActiveStreamingScreen((current) =>
-        current === event.screen ? null : current,
-      );
-    }
-
-    if (event.type === "done") {
-      setActiveStreamingScreen(null);
-      updateProjectStatus({ id: projectId, status: "ACTIVE" });
-      const newIds = [...frameIdsRef.current.values()];
-      if (newIds.length > 0) {
-        editor.select(...newIds);
-        editor.zoomToSelection({ animation: { duration: 600 } });
-        editor.selectNone();
-
-        if (captureTimeoutRef.current) {
-          clearTimeout(captureTimeoutRef.current);
+        if (frame.x === normalizedX && frame.y === normalizedY) {
+          return current;
         }
 
-        captureTimeoutRef.current = setTimeout(() => {
-          void onCapture(newIds);
-          captureTimeoutRef.current = null;
-        }, 2000);
-      }
-    }
-  }
+        const next = new Map(current);
+        next.set(id, {
+          ...frame,
+          x: normalizedX,
+          y: normalizedY,
+        });
+        return next;
+      });
 
-  const handleMount = (mountedEditor: Editor) => {
-    editorRef.current = mountedEditor; // always current, never stale
-    mountedEditor.updateInstanceState({ isGridMode: true });
-  };
+      scheduleSnapshotPersist();
+    },
+    [applyFrames, scheduleSnapshotPersist],
+  );
+
+  const handleResizeFrame = useCallback(
+    (id: string, nextW: number, nextH: number) => {
+      applyFrames((current) => {
+        const frame = current.get(id);
+        if (!frame) return current;
+
+        if (frame.w === nextW && frame.h === nextH) {
+          return current;
+        }
+
+        const next = new Map(current);
+        next.set(id, {
+          ...frame,
+          w: nextW,
+          h: nextH,
+        });
+        return next;
+      });
+
+      scheduleSnapshotPersist();
+    },
+    [applyFrames, scheduleSnapshotPersist],
+  );
+
+  const handleTransformChange = useCallback(
+    (nextTransform: Transform) => {
+      setCanvasTransform(nextTransform);
+      scheduleSnapshotPersist();
+    },
+    [scheduleSnapshotPersist],
+  );
 
   function handleMenuClick(action: ProjectActionId) {
     switch (action) {
@@ -511,48 +655,63 @@ const StudioPage = () => {
         router.push("/");
         break;
       case "share":
-        // Implement share functionality
         alert("Share functionality is not implemented yet.");
         break;
       case "download":
-        // Implement download functionality
         alert("Download functionality is not implemented yet.");
         break;
       case "edit":
-        // Implement edit functionality
         alert("Edit functionality is not implemented yet.");
         break;
-      case "delete":
-        // Implement delete functionality
+      case "delete": {
         const confirmed = confirm(
           "Are you sure you want to delete this project? This action cannot be undone.",
         );
         if (confirmed) {
-          // Implement delete logic here
           deleteProject({ id: projectId });
         }
         break;
+      }
       default:
         alert("Unknown action: " + action);
         break;
     }
   }
-  const hasInitiatedGenerationRef = useRef(false);
 
   useEffect(() => {
     if (projectLoading || isError) return;
+
     logger.info("Project info:", project);
     logger.warn("Project error:", projectError);
+
     if (!project) {
       logger.error("Project not found");
       return;
     }
-    if (project.status === "PENDING" && !hasInitiatedGenerationRef.current) {
-      hasInitiatedGenerationRef.current = true;
-      handleGenerate();
+
+    if (!hasHydratedCanvasRef.current) {
+      if (isCanvasSnapshotV1(project.canvasState)) {
+        restoreFromSnapshot(project.canvasState);
+      }
+      hasHydratedCanvasRef.current = true;
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [project, projectLoading, isError]);
+
+    if (
+      project.status === "PENDING" &&
+      !hasInitiatedGenerationRef.current &&
+      !isCanvasSnapshotV1(project.canvasState)
+    ) {
+      hasInitiatedGenerationRef.current = true;
+      void handleGenerate();
+    }
+  }, [
+    handleGenerate,
+    isError,
+    project,
+    projectError,
+    projectLoading,
+    restoreFromSnapshot,
+  ]);
 
   useEffect(() => {
     if (deleteProjectData?.error === false) {
@@ -563,11 +722,17 @@ const StudioPage = () => {
 
   useEffect(() => {
     return () => {
+      stopChunkFlusher();
+
       if (captureTimeoutRef.current) {
         clearTimeout(captureTimeoutRef.current);
       }
+
+      if (snapshotSaveTimeoutRef.current) {
+        clearTimeout(snapshotSaveTimeoutRef.current);
+      }
     };
-  }, []);
+  }, [stopChunkFlusher]);
 
   return (
     <div
@@ -581,21 +746,32 @@ const StudioPage = () => {
         "[--destructive:#ba1a1a] [--border:#222222] [--input:#333333] [--ring:#777777]",
       )}
     >
-      {/* Tldraw Infinite Canvas */}
       <div className="absolute inset-0 z-40" ref={domRef}>
-        <Tldraw
-          shapeUtils={shapeUtils}
-          components={components}
-          onMount={handleMount}
-          overrides={{
-            tools: (_editor, tools: TLUiToolsContextType) => {
-              // Remove the text tool
-              delete tools.text;
-              delete tools.stickyNote;
-              return tools;
-            },
-          }}
-        />
+        <InfiniteCanvas
+          ref={canvasRef}
+          frames={frameRects}
+          activeFrameId={activeFrameId}
+          onFrameExit={exitFrame}
+          onTransformChange={handleTransformChange}
+        >
+          {frameList.map((frame) => (
+            <CanvasFrame
+              key={frame.id}
+              {...frame}
+              scale={canvasTransform.k}
+              isActive={activeFrameId === frame.id}
+              isSelected={selectedFrameId === frame.id}
+              onSelect={setSelectedFrameId}
+              onActivate={(id) => {
+                setSelectedFrameId(id);
+                enterFrame(id);
+                scheduleSnapshotPersist();
+              }}
+              onMove={handleMoveFrame}
+              onResize={handleResizeFrame}
+            />
+          ))}
+        </InfiniteCanvas>
       </div>
 
       <ProjectMenuPanel
@@ -603,7 +779,6 @@ const StudioPage = () => {
         handleMenuClick={handleMenuClick}
       />
 
-      {/* Prompt Input */}
       <div className="pointer-events-none absolute inset-0 z-50">
         <div className="pointer-events-auto absolute bottom-4 left-1/2 w-[min(980px,calc(100%-1.5rem))] -translate-x-1/2 rounded-md border border-input bg-card/90 p-2.5 shadow-2xl shadow-black/30 backdrop-blur-[1px]">
           <div className="mb-2 flex items-center justify-between gap-3">
@@ -683,7 +858,9 @@ const StudioPage = () => {
               onKeyDown={(event) => {
                 if (event.key === "Enter" && !event.shiftKey) {
                   event.preventDefault();
-                  if (canGenerate) handleGenerate();
+                  if (canGenerate) {
+                    void handleGenerate();
+                  }
                 }
               }}
               placeholder="What would you like to change or create?"

@@ -1,3 +1,5 @@
+import { CanvasSnapshotV1 } from "@/lib/canvas-state";
+
 export interface ApiResponse<T> {
   error: boolean;
   message: string;
@@ -8,20 +10,9 @@ export interface ApiResponse<T> {
 export type ProjectDetail = {
   id: string;
   title: string;
-  // description: string | null;
   initialPrompt: string;
   status: "PENDING" | "GENERATING" | "ACTIVE" | "ARCHIVED";
-  // canvasState: unknown;
-  // thumbnailUrl: string | null;
-  // generations: Array<{
-  //   id: string;
-  //   model: string;
-  //   spec: unknown;
-  //   screens: unknown;
-  //   createdAt: string;
-  // }>;
-  // createdAt: string;
-  // updatedAt: string;
+  canvasState: CanvasSnapshotV1 | null;
 };
 
 export type ProjectSummary = {
