@@ -11,4 +11,4 @@ export interface FrameRect {
   h: number;
 }
 
-export interface CanvasFrameData extends CanvasFrameSnapshot {}
+export type CanvasFrameData = CanvasFrameSnapshot;

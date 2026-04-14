@@ -15,7 +15,7 @@ const MIN_WEB_H = 320;
 const MAX_WEB_H = 20000;
 
 const MIN_MOBILE_W = 320;
-const MAX_MOBILE_W = 900;
+const MAX_MOBILE_W = 430;
 const MIN_MOBILE_H = 560;
 const MAX_MOBILE_H = 2200;
 

@@ -206,7 +206,15 @@ export async function updateProjectCanvasState(
   });
 }
 
-export function useProjectCanvasStateUpdateMutation() {
+type CanvasStateMutationOptions = {
+  onConflict?: () => void;
+  onPersisted?: () => void;
+  onError?: (error: unknown) => void;
+};
+
+export function useProjectCanvasStateUpdateMutation(
+  options?: CanvasStateMutationOptions,
+) {
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -217,6 +225,12 @@ export function useProjectCanvasStateUpdateMutation() {
       id: string;
       canvasState: CanvasSnapshotV1 | null;
     }) => updateProjectCanvasState(id, canvasState),
+    retry: (failureCount, error) => {
+      return (
+        error instanceof ApiError && error.status === 409 && failureCount < 2
+      );
+    },
+    retryDelay: (attemptIndex) => Math.min(300 * 2 ** attemptIndex, 2000),
     onSuccess: (data, { id }) => {
       queryClient.setQueryData<ProjectDetail>(["projects", id], (prev) =>
         prev
@@ -227,6 +241,16 @@ export function useProjectCanvasStateUpdateMutation() {
             }
           : prev,
       );
+
+      options?.onPersisted?.();
+    },
+    onError: (error) => {
+      if (error instanceof ApiError && error.status === 409) {
+        options?.onConflict?.();
+        return;
+      }
+
+      options?.onError?.(error);
     },
   });
 }

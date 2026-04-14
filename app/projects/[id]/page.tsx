@@ -103,6 +103,40 @@ function normalizePosition(value: number) {
   return Math.round(value * 100) / 100;
 }
 
+async function readResponseErrorMessage(response: Response) {
+  const contentType = response.headers.get("content-type") ?? "";
+
+  if (contentType.includes("application/json")) {
+    try {
+      const payload = (await response.json()) as { message?: string };
+      if (typeof payload.message === "string" && payload.message.trim()) {
+        return payload.message.trim();
+      }
+    } catch {
+      // Ignore JSON parse failures and fall back to text below.
+    }
+  }
+
+  try {
+    const text = await response.text();
+    if (text.trim()) {
+      return text.trim();
+    }
+  } catch {
+    // Ignore text parse failures and return fallback.
+  }
+
+  return "Generation failed";
+}
+
+function getSafeErrorMessage(error: unknown, fallback: string) {
+  if (error instanceof Error && error.message.trim()) {
+    return error.message;
+  }
+
+  return fallback;
+}
+
 const StudioPage = () => {
   const { id: projectId } = useParams<{ id: string }>();
   const router = useRouter();
@@ -112,10 +146,27 @@ const StudioPage = () => {
     isLoading: projectLoading,
     isError,
     error: projectError,
+    refetch: refetchProject,
   } = useProjectQuery(projectId);
 
+  const [canvasSaveMessage, setCanvasSaveMessage] = useState<string | null>(
+    null,
+  );
+
   const { mutate: updateProjectStatus } = useProjectStatusUpdateMutation();
-  const { mutate: persistCanvasState } = useProjectCanvasStateUpdateMutation();
+  const { mutate: persistCanvasState } = useProjectCanvasStateUpdateMutation({
+    onConflict: () => {
+      setCanvasSaveMessage("Canvas sync conflict detected. Retrying save...");
+    },
+    onPersisted: () => {
+      setCanvasSaveMessage(null);
+    },
+    onError: () => {
+      setCanvasSaveMessage(
+        "Unable to save canvas changes right now. Changes may not persist yet.",
+      );
+    },
+  });
   const {
     mutate: deleteProject,
     data: deleteProjectData,
@@ -847,8 +898,8 @@ const StudioPage = () => {
       setPrompt("");
 
       if (!response.ok || !response.body) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || "Generation failed");
+        const errorMessage = await readResponseErrorMessage(response);
+        throw new Error(errorMessage);
       }
 
       updateProjectStatus({ id: projectId, status: "GENERATING" });
@@ -1110,6 +1161,76 @@ const StudioPage = () => {
     };
   }, [flushPendingSnapshotPersist, stopChunkFlusher]);
 
+  if (projectLoading) {
+    return (
+      <div className="flex h-screen w-full items-center justify-center bg-background text-foreground">
+        <div
+          className={cn("text-xs uppercase tracking-[0.2em]", mono.className)}
+        >
+          Loading project...
+        </div>
+      </div>
+    );
+  }
+
+  if (isError) {
+    const errorMessage = getSafeErrorMessage(
+      projectError,
+      "Failed to load this project.",
+    );
+
+    return (
+      <div className="flex h-screen w-full items-center justify-center bg-background px-6 text-foreground">
+        <div className="w-full max-w-xl rounded-md border border-input bg-card p-6">
+          <h1
+            className={cn(
+              "text-sm uppercase tracking-[0.18em]",
+              mono.className,
+            )}
+          >
+            Unable to load project
+          </h1>
+          <p className="mt-3 text-sm text-muted-foreground">{errorMessage}</p>
+
+          <div className="mt-5 flex items-center gap-2">
+            <Button onClick={() => void refetchProject()} variant="secondary">
+              Retry
+            </Button>
+            <Button onClick={() => router.push("/")} variant="ghost">
+              Back to dashboard
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!project) {
+    return (
+      <div className="flex h-screen w-full items-center justify-center bg-background px-6 text-foreground">
+        <div className="w-full max-w-xl rounded-md border border-input bg-card p-6">
+          <h1
+            className={cn(
+              "text-sm uppercase tracking-[0.18em]",
+              mono.className,
+            )}
+          >
+            Project not found
+          </h1>
+          <p className="mt-3 text-sm text-muted-foreground">
+            This project may have been deleted or you no longer have access.
+          </p>
+
+          <div className="mt-5">
+            <Button onClick={() => router.push("/")} variant="secondary">
+              Back to dashboard
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
       className={cn(
@@ -1153,7 +1274,7 @@ const StudioPage = () => {
       </div>
 
       <ProjectMenuPanel
-        title={project?.title || "Untitled Project"}
+        title={project.title || "Untitled Project"}
         handleMenuClick={handleMenuClick}
       />
 
@@ -1216,6 +1337,16 @@ const StudioPage = () => {
                     : "Preparing generation..."}
                 </span>
               )}
+              {canvasSaveMessage && (
+                <span
+                  className={cn(
+                    "inline-flex items-center rounded-md border border-amber-400/30 bg-amber-500/10 px-2 py-1 text-[10px] text-amber-200",
+                    mono.className,
+                  )}
+                >
+                  {canvasSaveMessage}
+                </span>
+              )}
               <span
                 className={cn(
                   "text-[10px] uppercase tracking-[0.16em] text-muted-foreground",
@@ -1269,7 +1400,17 @@ const StudioPage = () => {
 
 const StudioPageWrapper = () => {
   return (
-    <Suspense>
+    <Suspense
+      fallback={
+        <div className="flex h-screen w-full items-center justify-center bg-background text-foreground">
+          <div
+            className={cn("text-xs uppercase tracking-[0.2em]", mono.className)}
+          >
+            Loading studio...
+          </div>
+        </div>
+      }
+    >
       <StudioPage />
     </Suspense>
   );

@@ -6,6 +6,8 @@ import { isAuthError, requireAuthContext } from "@/lib/get-auth";
 
 import logger from "@/lib/logger";
 
+const MAX_PROJECT_PROMPT_LENGTH = 10000;
+
 const client = new Client({
   token: process.env.QSTASH_TOKEN,
   retry: {
@@ -33,7 +35,20 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const body = (await req.json()) as { prompt?: unknown; platform?: unknown };
+    let body: { prompt?: unknown; platform?: unknown };
+
+    try {
+      body = (await req.json()) as { prompt?: unknown; platform?: unknown };
+    } catch {
+      return NextResponse.json(
+        {
+          error: true,
+          message: "Request body must be valid JSON.",
+        },
+        { status: 400 },
+      );
+    }
+
     const prompt = typeof body.prompt === "string" ? body.prompt.trim() : "";
 
     if (!prompt) {
@@ -42,6 +57,16 @@ export async function POST(req: NextRequest) {
           error: true,
           message:
             "Invalid prompt. Please provide a prompt to create a design.",
+        },
+        { status: 400 },
+      );
+    }
+
+    if (prompt.length > MAX_PROJECT_PROMPT_LENGTH) {
+      return NextResponse.json(
+        {
+          error: true,
+          message: `Prompt is too long. Maximum ${MAX_PROJECT_PROMPT_LENGTH} characters.`,
         },
         { status: 400 },
       );
@@ -111,7 +136,6 @@ export async function POST(req: NextRequest) {
         error: true,
         message: "An error occurred while creating the project.",
         data: null,
-        details: error,
       },
       { status: 500 },
     );

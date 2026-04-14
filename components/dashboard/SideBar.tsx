@@ -16,7 +16,7 @@ import { Button } from "@/components/ui/button";
 import { useProjectsQuery } from "@/lib/projects/queries";
 import { useUserActivityStore } from "@/providers/zustand-provider";
 import { Timeframe } from "@/stores/user-activity";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import Image from "next/image";
 
 const mono = JetBrains_Mono({
@@ -54,6 +54,7 @@ const SideBar = ({
   );
 
   const router = useRouter();
+  const pathname = usePathname();
 
   const shouldReduceMotion = useReducedMotion();
   const mobileDrawerRef = useRef<HTMLElement | null>(null);
@@ -112,8 +113,17 @@ const SideBar = ({
   }, [projects, selectedTimeframe]);
 
   const handleOpenProject = (projectId: string) => {
+    setIsMobileMenuOpen(false);
     router.push(`/projects/${projectId}`);
   };
+
+  useEffect(() => {
+    if (!isMobileMenuOpen) {
+      return;
+    }
+
+    setIsMobileMenuOpen(false);
+  }, [isMobileMenuOpen, pathname, setIsMobileMenuOpen]);
 
   useEffect(() => {
     if (!isMobileMenuOpen) {

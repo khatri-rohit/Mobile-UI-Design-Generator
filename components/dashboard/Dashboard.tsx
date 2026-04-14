@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { motion, useReducedMotion } from "motion/react";
 import { JetBrains_Mono } from "next/font/google";
 import { useRouter } from "next/navigation";
@@ -81,7 +81,8 @@ const Dashboard = () => {
   const selectedModel = useUserActivityStore((state) => state.model);
   const setSelectedModel = useUserActivityStore((state) => state.setModel);
 
-  const { mutate: createProject, status, data } = useCreateProjectMutation();
+  const { mutateAsync: createProject, isPending: isCreatingProject } =
+    useCreateProjectMutation();
   const router = useRouter();
 
   const shouldReduceMotion = useReducedMotion();
@@ -119,7 +120,7 @@ const Dashboard = () => {
           },
         };
 
-  const canSubmit = command.trim().length > 0;
+  const canSubmit = command.trim().length > 0 && !isCreatingProject;
 
   const handleQuickAction = (action: (typeof quickActions)[number]) => {
     setCommand(action.prompt);
@@ -130,31 +131,32 @@ const Dashboard = () => {
     });
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     const normalizedPrompt = command.trim();
 
     if (!normalizedPrompt) {
       return;
     }
 
+    setError(null);
+
     try {
-      createProject({
+      const createdProject = await createProject({
         prompt: normalizedPrompt,
       });
+
+      if (!createdProject.projectId) {
+        setError("Project created but failed to resolve project id.");
+        return;
+      }
+
+      router.push(`/projects/${createdProject.projectId}`);
     } catch {
-      // Ignore storage failures; studio still has URL fallbacks for minimal state.
       setError(
         "Failed to initiate new design. Please check your connection and try again.",
       );
     }
   };
-
-  useEffect(() => {
-    if (status === "success" && data) {
-      const projectId = data.projectId;
-      router.push(`/projects/${projectId}`);
-    }
-  }, [status, data, router]);
 
   return (
     <div
@@ -403,7 +405,7 @@ const Dashboard = () => {
                     onKeyDown={(event) => {
                       if (event.key === "Enter") {
                         event.preventDefault();
-                        handleSubmit();
+                        void handleSubmit();
                       }
                     }}
                     autoComplete="off"
@@ -421,7 +423,7 @@ const Dashboard = () => {
                     <Button
                       size="icon-sm"
                       aria-label="Submit command"
-                      onClick={handleSubmit}
+                      onClick={() => void handleSubmit()}
                       disabled={!canSubmit}
                     >
                       <ArrowUp />

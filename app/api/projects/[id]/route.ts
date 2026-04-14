@@ -4,6 +4,8 @@ import { isAuthError, requireAuthContext } from "@/lib/get-auth";
 import prisma from "@/lib/prisma";
 import { NextResponse, NextRequest } from "next/server";
 
+const CANVAS_SNAPSHOT_CLOCK_SKEW_MS = 2000;
+
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
@@ -86,7 +88,6 @@ export async function GET(
         error: true,
         message: "An error occurred while fetching the project",
         data: null,
-        details: error,
       },
       { status: 500 },
     );
@@ -231,12 +232,14 @@ export async function PATCH(
         const persistedSavedAtMs = Date.parse(project.canvasState.savedAt);
         if (
           !Number.isNaN(persistedSavedAtMs) &&
-          incomingSavedAtMs <= persistedSavedAtMs
+          incomingSavedAtMs + CANVAS_SNAPSHOT_CLOCK_SKEW_MS <=
+            persistedSavedAtMs
         ) {
           return NextResponse.json(
             {
               error: true,
               message: "Stale canvasState payload rejected",
+              code: "CANVAS_STATE_CONFLICT",
               data: null,
             },
             { status: 409 },
@@ -294,7 +297,6 @@ export async function PATCH(
         error: true,
         message: "An error occurred while updating the project status",
         data: null,
-        details: error,
       },
       { status: 500 },
     );
@@ -378,7 +380,6 @@ export async function DELETE(
         error: true,
         message: "An error occurred while deleting the project",
         data: null,
-        details: error,
       },
       { status: 500 },
     );
