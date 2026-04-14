@@ -52,7 +52,7 @@ export default function ProjectMenuPanel({
   handleMenuClick,
 }: ProjectMenuPanelProps) {
   return (
-    <div className="dark absolute inset-5 z-50">
+    <div className="dark absolute inset-5 z-50 w-fit h-fit">
       <div className="flex items-center gap-3">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -71,11 +71,6 @@ export default function ProjectMenuPanel({
             sideOffset={12}
             className="w-70 rounded-none border-white/10 bg-[#181818] p-2 text-white shadow-[0_24px_80px_rgba(0,0,0,0.65)] z-50"
           >
-            {/* <DropdownMenuLabel className="px-3 py-2 text-xs font-medium uppercase tracking-[0.2em] text-white/45">
-              Project actions
-            </DropdownMenuLabel>
-            <DropdownMenuSeparator className="my-2 bg-white/10" /> */}
-
             {projectActions.map((item) => {
               const Icon = item.icon;
 

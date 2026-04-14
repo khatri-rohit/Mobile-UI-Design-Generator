@@ -1,6 +1,10 @@
+import { Prisma } from "@/app/generated/prisma/client";
+import { isCanvasSnapshotV1 } from "@/lib/canvas-state";
 import { isAuthError, requireAuthContext } from "@/lib/get-auth";
 import prisma from "@/lib/prisma";
 import { NextResponse, NextRequest } from "next/server";
+
+const CANVAS_SNAPSHOT_CLOCK_SKEW_MS = 2000;
 
 export async function GET(
   req: NextRequest,
@@ -50,15 +54,20 @@ export async function GET(
       );
     }
 
+    const normalizedCanvasState = isCanvasSnapshotV1(project.canvasState)
+      ? project.canvasState
+      : null;
+
     return NextResponse.json(
       {
         error: false,
         message: "Project fetched successfully",
         data: {
           id: project.id,
-          title: project.title,
+          title: project.title ?? "Untitled Project",
           status: project.status,
           initialPrompt: project.initialPrompt,
+          canvasState: normalizedCanvasState,
         },
       },
       { status: 200 },
@@ -79,13 +88,13 @@ export async function GET(
         error: true,
         message: "An error occurred while fetching the project",
         data: null,
-        details: error,
       },
       { status: 500 },
     );
   }
 }
 const ProjectStatus = ["PENDING", "GENERATING", "ACTIVE", "ARCHIVED"] as const;
+type ProjectStatusValue = (typeof ProjectStatus)[number];
 
 export async function PATCH(
   req: NextRequest,
@@ -119,8 +128,46 @@ export async function PATCH(
         { status: 400 },
       );
     }
-    const { status } = await req.json();
-    if (!status || !ProjectStatus.includes(status)) {
+
+    let body: {
+      status?: unknown;
+      canvasState?: unknown;
+    };
+
+    try {
+      body = (await req.json()) as {
+        status?: unknown;
+        canvasState?: unknown;
+      };
+    } catch {
+      return NextResponse.json(
+        {
+          error: true,
+          message: "Request body must be valid JSON",
+          data: null,
+        },
+        { status: 400 },
+      );
+    }
+
+    const { status, canvasState } = body;
+
+    if (status === undefined && canvasState === undefined) {
+      return NextResponse.json(
+        {
+          error: true,
+          message: "Either status or canvasState must be provided",
+          data: null,
+        },
+        { status: 400 },
+      );
+    }
+
+    if (
+      status !== undefined &&
+      (typeof status !== "string" ||
+        !ProjectStatus.includes(status as ProjectStatusValue))
+    ) {
       return NextResponse.json(
         {
           error: true,
@@ -130,6 +177,28 @@ export async function PATCH(
         { status: 400 },
       );
     }
+
+    if (
+      canvasState !== undefined &&
+      canvasState !== null &&
+      !isCanvasSnapshotV1(canvasState)
+    ) {
+      return NextResponse.json(
+        {
+          error: true,
+          message: "Invalid canvasState payload",
+          data: null,
+        },
+        { status: 400 },
+      );
+    }
+
+    const canvasStateSnapshot =
+      canvasState !== undefined &&
+      canvasState !== null &&
+      isCanvasSnapshotV1(canvasState)
+        ? canvasState
+        : null;
 
     const project = await prisma.project.findUnique({
       where: { id, userId: authContext.appUserId },
@@ -146,16 +215,69 @@ export async function PATCH(
       );
     }
 
-    await prisma.project.update({
+    if (canvasStateSnapshot) {
+      const incomingSavedAtMs = Date.parse(canvasStateSnapshot.savedAt);
+      if (Number.isNaN(incomingSavedAtMs)) {
+        return NextResponse.json(
+          {
+            error: true,
+            message: "Invalid canvasState savedAt value",
+            data: null,
+          },
+          { status: 400 },
+        );
+      }
+
+      if (isCanvasSnapshotV1(project.canvasState)) {
+        const persistedSavedAtMs = Date.parse(project.canvasState.savedAt);
+        if (
+          !Number.isNaN(persistedSavedAtMs) &&
+          incomingSavedAtMs + CANVAS_SNAPSHOT_CLOCK_SKEW_MS <=
+            persistedSavedAtMs
+        ) {
+          return NextResponse.json(
+            {
+              error: true,
+              message: "Stale canvasState payload rejected",
+              code: "CANVAS_STATE_CONFLICT",
+              data: null,
+            },
+            { status: 409 },
+          );
+        }
+      }
+    }
+
+    const updateData: Prisma.ProjectUpdateInput = {};
+
+    if (status !== undefined) {
+      updateData.status = status as ProjectStatusValue;
+    }
+
+    if (canvasState !== undefined) {
+      updateData.canvasState =
+        canvasState === null
+          ? Prisma.JsonNull
+          : (canvasStateSnapshot as unknown as Prisma.InputJsonValue);
+    }
+
+    const updatedProject = await prisma.project.update({
       where: { id },
-      data: { status },
+      data: updateData,
+      select: {
+        status: true,
+        canvasState: true,
+      },
     });
 
     return NextResponse.json(
       {
         error: false,
-        message: "Project status updated successfully",
-        data: { status },
+        message: "Project updated successfully",
+        data: {
+          status: updatedProject.status,
+          canvasState: updatedProject.canvasState,
+        },
       },
       { status: 200 },
     );
@@ -175,7 +297,6 @@ export async function PATCH(
         error: true,
         message: "An error occurred while updating the project status",
         data: null,
-        details: error,
       },
       { status: 500 },
     );
@@ -259,7 +380,6 @@ export async function DELETE(
         error: true,
         message: "An error occurred while deleting the project",
         data: null,
-        details: error,
       },
       { status: 500 },
     );

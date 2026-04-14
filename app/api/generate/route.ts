@@ -31,8 +31,21 @@ const STAGE3_MODELS = [
   "deepseek-v3.2:cloud",
 ];
 
+const MAX_PROMPT_LENGTH = 10000;
+const MAX_MODEL_NAME_LENGTH = 80;
+
 function normalizePlatform(value: unknown): GenerationPlatform {
   return value === "mobile" ? "mobile" : "web";
+}
+
+function normalizeModelPreference(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+
+  const normalized = value.trim();
+  if (!normalized) return null;
+  if (normalized.length > MAX_MODEL_NAME_LENGTH) return null;
+
+  return normalized;
 }
 
 const MOBILE_COMPLEXITY_KEYWORDS = [
@@ -203,15 +216,81 @@ export async function POST(req: NextRequest) {
         `generationRatelimit.limit failed for authContext.appUserId=${authContext.appUserId}`,
         rateLimitError,
       );
-      // Fail open: continue without rate-limit enforcement.
+
+      return NextResponse.json(
+        {
+          error: true,
+          message: "Generation is temporarily unavailable. Please try again.",
+        },
+        { status: 503 },
+      );
     }
 
-    const {
-      prompt,
-      platform,
-      model, // optional preferred model for stage 3
-    } = await req.json();
-    const requestedPlatform = normalizePlatform(platform);
+    let body: {
+      prompt?: unknown;
+      platform?: unknown;
+      model?: unknown;
+    };
+
+    try {
+      body = (await req.json()) as {
+        prompt?: unknown;
+        platform?: unknown;
+        model?: unknown;
+      };
+    } catch {
+      return NextResponse.json(
+        {
+          error: true,
+          message: "Request body must be valid JSON",
+        },
+        { status: 400 },
+      );
+    }
+
+    const prompt = typeof body.prompt === "string" ? body.prompt.trim() : "";
+    if (!prompt) {
+      return NextResponse.json(
+        {
+          error: true,
+          message: "Prompt is required",
+        },
+        { status: 400 },
+      );
+    }
+
+    if (prompt.length > MAX_PROMPT_LENGTH) {
+      return NextResponse.json(
+        {
+          error: true,
+          message: `Prompt is too long. Maximum ${MAX_PROMPT_LENGTH} characters.`,
+        },
+        { status: 400 },
+      );
+    }
+
+    const preferredModel = normalizeModelPreference(body.model);
+    if (body.model !== undefined && !preferredModel) {
+      return NextResponse.json(
+        {
+          error: true,
+          message: "Invalid model value",
+        },
+        { status: 400 },
+      );
+    }
+
+    if (preferredModel && !STAGE3_MODELS.includes(preferredModel)) {
+      return NextResponse.json(
+        {
+          error: true,
+          message: "Unsupported model selection",
+        },
+        { status: 400 },
+      );
+    }
+
+    const requestedPlatform = normalizePlatform(body.platform);
     const designContext = await buildDesignContext({
       prompt,
       platform: requestedPlatform,
@@ -222,10 +301,9 @@ export async function POST(req: NextRequest) {
       designContext,
     });
     const designContextText = toDesignContextText(designContext);
-    const stage3ModelPriority = [
-      model,
-      ...STAGE3_MODELS.filter((m) => m !== model),
-    ];
+    const stage3ModelPriority = preferredModel
+      ? [preferredModel, ...STAGE3_MODELS.filter((m) => m !== preferredModel)]
+      : [...STAGE3_MODELS];
 
     const ollama = initializeOllama();
 

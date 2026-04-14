@@ -7,6 +7,7 @@ import {
 
 import { ApiError, requestApi } from "@/lib/api/http";
 import { ProjectDetail, ProjectSummary } from "../api/types";
+import { CanvasSnapshotV1 } from "@/lib/canvas-state";
 
 type CreateProjectInput = {
   prompt: string;
@@ -146,16 +147,16 @@ export async function updateProjectStatus(
   id: string,
   status: "PENDING" | "GENERATING" | "ACTIVE" | "ARCHIVED",
 ) {
-  return requestApi<{ status: ProjectDetail["status"] }>(
-    `/api/projects/${id}`,
-    {
-      method: "PATCH",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ status }),
+  return requestApi<{
+    status: ProjectDetail["status"];
+    canvasState: ProjectDetail["canvasState"];
+  }>(`/api/projects/${id}`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
     },
-  );
+    body: JSON.stringify({ status }),
+  });
 }
 
 export function useProjectStatusUpdateMutation() {
@@ -169,10 +170,87 @@ export function useProjectStatusUpdateMutation() {
       id: string;
       status: ProjectDetail["status"];
     }) => updateProjectStatus(id, status),
-    onSuccess: (data: { status: ProjectDetail["status"] }, { id }) => {
+    onSuccess: (
+      data: {
+        status: ProjectDetail["status"];
+        canvasState: ProjectDetail["canvasState"];
+      },
+      { id },
+    ) => {
       queryClient.setQueryData<ProjectDetail>(["projects", id], (prev) =>
-        prev ? { ...prev, status: data.status } : prev,
+        prev
+          ? {
+              ...prev,
+              status: data.status,
+              canvasState: data.canvasState,
+            }
+          : prev,
       );
+    },
+  });
+}
+
+export async function updateProjectCanvasState(
+  id: string,
+  canvasState: CanvasSnapshotV1 | null,
+) {
+  return requestApi<{
+    status: ProjectDetail["status"];
+    canvasState: ProjectDetail["canvasState"];
+  }>(`/api/projects/${id}`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ canvasState }),
+  });
+}
+
+type CanvasStateMutationOptions = {
+  onConflict?: () => void;
+  onPersisted?: () => void;
+  onError?: (error: unknown) => void;
+};
+
+export function useProjectCanvasStateUpdateMutation(
+  options?: CanvasStateMutationOptions,
+) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      id,
+      canvasState,
+    }: {
+      id: string;
+      canvasState: CanvasSnapshotV1 | null;
+    }) => updateProjectCanvasState(id, canvasState),
+    retry: (failureCount, error) => {
+      return (
+        error instanceof ApiError && error.status === 409 && failureCount < 2
+      );
+    },
+    retryDelay: (attemptIndex) => Math.min(300 * 2 ** attemptIndex, 2000),
+    onSuccess: (data, { id }) => {
+      queryClient.setQueryData<ProjectDetail>(["projects", id], (prev) =>
+        prev
+          ? {
+              ...prev,
+              status: data.status,
+              canvasState: data.canvasState,
+            }
+          : prev,
+      );
+
+      options?.onPersisted?.();
+    },
+    onError: (error) => {
+      if (error instanceof ApiError && error.status === 409) {
+        options?.onConflict?.();
+        return;
+      }
+
+      options?.onError?.(error);
     },
   });
 }

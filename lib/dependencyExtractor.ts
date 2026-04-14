@@ -28,12 +28,10 @@ const KNOWN_VERSIONS: Record<string, string> = {
 
   // Forms
   "react-hook-form": "^7.51.0",
-  zod: "^3.22.0",
 
   // Utility
   lodash: "^4.17.21",
   uuid: "^9.0.0",
-  axios: "^1.6.0",
 
   // Always present
   react: "19.2.4",
