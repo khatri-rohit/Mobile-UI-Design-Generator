@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+// import { Client } from "@upstash/qstash";
 import logger from "@/lib/logger";
 import { sendFeedbackEmail } from "@/lib/feedback-mail";
 import {
@@ -7,6 +8,14 @@ import {
 } from "@/lib/schemas/studio";
 
 export const runtime = "nodejs";
+
+// const client = new Client({
+//   token: process.env.QSTASH_TOKEN,
+//   retry: {
+//     retries: 3,
+//     backoff: (retry_count) => 2 ** retry_count * 20,
+//   },
+// });
 
 export async function POST(request: NextRequest) {
   try {
@@ -50,11 +59,39 @@ export async function POST(request: NextRequest) {
       })),
     );
 
+    // // Can't use QStash for this job right now because the max payload size is 1MB and we want to allow up to 25MB of attachments. Instead, we'll send the email directly from this API route for now. We can revisit using QStash or another background job.
+    // try {
+    //   const queueBaseUrl = process.env.BACKGROUND_TASK_QUEUE_PUBLIC_URL;
+    //   if (!queueBaseUrl)
+    //     throw new Error("Missing BACKGROUND_TASK_QUEUE_PUBLIC_URL");
+
+    //   const result = await client.publishJSON({
+    //     url: `${queueBaseUrl}/api/background-jobs/send-feedback-email`,
+    //     body: { feedback, attachments: emailAttachments },
+    //   });
+
+    //   logger.info("Published feedback email task to QStash", {
+    //     qstashResult: result,
+    //   });
+    // } catch (queueError) {
+    //   logger.error("Feedback submitted but failed to enqueue email task", {
+    //     error:
+    //       queueError instanceof Error ? queueError.message : String(queueError),
+    //   });
+    //   return new Response(
+    //     JSON.stringify({
+    //       error: "An error occurred while processing feedback",
+    //     }),
+    //     { status: 500, headers: { "Content-Type": "application/json" } },
+    //   );
+    //   // Do not fail submission after successful DB write.
+    // }
+
     await sendFeedbackEmail({
       feedback,
       attachments: emailAttachments,
     });
-    logger.info("Feedback email sent from /api/feedback", {
+    logger.info("Feedback email sent to backend queue", {
       attachments: emailAttachments.length,
     });
 
