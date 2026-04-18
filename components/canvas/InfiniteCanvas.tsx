@@ -56,11 +56,16 @@ export const InfiniteCanvas = forwardRef<
     k: 1,
   });
 
-  const transformApi = useCanvasTransform(containerRef, worldRef, (next) => {
-    setTransformState(next);
-    setZoomPercent(Math.round(next.k * 100));
-    onTransformChange?.(next);
-  });
+  const transformApi = useCanvasTransform(
+    containerRef,
+    worldRef,
+    activeFrameId,
+    (next) => {
+      setTransformState(next);
+      setZoomPercent(Math.round(next.k * 100));
+      onTransformChange?.(next);
+    },
+  );
 
   const handleContainerPointerDown = useCallback(
     (event: React.PointerEvent<HTMLDivElement>) => {

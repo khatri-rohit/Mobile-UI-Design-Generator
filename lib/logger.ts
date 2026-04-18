@@ -15,9 +15,12 @@ class LOGGER {
   static info(...args: any[]) {
     console.info("[Info]", ...args);
   }
+
+  static debug(...args: any[]) {
+    console.debug("[Debug]", ...args);
+  }
 }
 
 const logger = LOGGER;
 
 export default logger;
-

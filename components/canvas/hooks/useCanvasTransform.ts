@@ -32,9 +32,16 @@ function clampZoom(k: number) {
   return Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, k));
 }
 
+function getWheelZoomDelta(event: WheelEvent) {
+  // Keep Ctrl/Cmd wheel zoom at normal d3 sensitivity.
+  const modeFactor = event.deltaMode === 1 ? 0.05 : event.deltaMode ? 1 : 0.002;
+  return -event.deltaY * modeFactor;
+}
+
 export function useCanvasTransform(
   containerRef: RefObject<HTMLDivElement | null>,
   worldRef: RefObject<HTMLDivElement | null>,
+  _activeFrameId: string | null,
   onTransformChange?: (transform: Transform) => void,
 ): CanvasTransformHandle {
   const zoomBehaviorRef = useRef<d3Zoom.ZoomBehavior<
@@ -64,10 +71,12 @@ export function useCanvasTransform(
     const zoomBehavior = d3Zoom
       .zoom<HTMLDivElement, unknown>()
       .scaleExtent([MIN_ZOOM, MAX_ZOOM])
+      .wheelDelta((event: WheelEvent) => getWheelZoomDelta(event))
       .filter((event: MouseEvent | WheelEvent) => {
         if (event.type === "wheel") {
-          event.preventDefault();
-          return true;
+          const wheelEvent = event as WheelEvent;
+          wheelEvent.preventDefault();
+          return wheelEvent.ctrlKey || wheelEvent.metaKey;
         }
 
         if (event.type === "mousedown") {
@@ -98,7 +107,7 @@ export function useCanvasTransform(
     });
 
     return () => {
-      selection.on(".zoom", null);
+      // selection.on(".zoom", null);
       container.removeEventListener("wheel", preventNativeZoom);
     };
   }, [applyTransform, containerRef]);

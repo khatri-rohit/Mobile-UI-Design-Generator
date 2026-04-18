@@ -148,12 +148,7 @@ function coerceSpec(
         : "light",
     primaryColor: raw.primaryColor ?? "#2563eb",
     accentColor: raw.accentColor ?? "#f59e0b",
-    stylingLib:
-      raw.stylingLib === "css" ||
-      raw.stylingLib === "tailwind" ||
-      raw.stylingLib === "shadcn"
-        ? raw.stylingLib
-        : "shadcn",
+    stylingLib: raw.stylingLib === "css" ? "css" : "tailwind",
     layoutDensity:
       raw.layoutDensity === "compact" || raw.layoutDensity === "comfortable"
         ? raw.layoutDensity

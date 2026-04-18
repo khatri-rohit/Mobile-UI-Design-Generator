@@ -236,7 +236,7 @@ export const CanvasFrame = memo(function CanvasFrame({
       : resolvedErrorMessage;
 
   return (
-    <ContextMenu onOpenChange={(open) => open && handleSelectContext(id)}>
+    <ContextMenu onOpenChange={() => handleSelectContext(id)}>
       <ContextMenuTrigger>
         <div
           ref={containerRef}

@@ -34,7 +34,7 @@ export function useFrameLifecycle({
   const { error } = sandpack;
 
   const mount = useCallback(async () => {
-    logger.info("mount: ", content);
+    // logger.info("mount: ", content);
     // logger.info("mount: ", iframeRef.current);
     const iframeElement = iframeRef.current;
     if (!iframeElement || !content) return;

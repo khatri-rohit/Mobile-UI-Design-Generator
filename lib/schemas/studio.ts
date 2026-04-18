@@ -126,7 +126,7 @@ export const webAppSpecSchema = z.object({
   colorMode: z.enum(["dark", "light"]),
   primaryColor: z.string().min(1),
   accentColor: z.string().min(1),
-  stylingLib: z.enum(["css", "tailwind", "shadcn"]),
+  stylingLib: z.enum(["css", "tailwind"]),
   layoutDensity: z.enum(["comfortable", "compact"]),
   components: z.array(z.string()),
 });

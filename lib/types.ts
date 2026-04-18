@@ -54,7 +54,7 @@ export interface WebAppSpec {
   colorMode: "dark" | "light";
   primaryColor: string;
   accentColor: string;
-  stylingLib: "css" | "tailwind" | "shadcn";
+  stylingLib: "css" | "tailwind";
   layoutDensity: "comfortable" | "compact";
   components: string[];
 }

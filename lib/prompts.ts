@@ -22,7 +22,6 @@ Intent lock (critical):
 const SKILL_DIRECTIVE = `
 Skill-guided UI system:
 - Use design-system token logic: clear primitive -> semantic -> component styling structure.
-- Prefer shadcn-style component composition patterns when stylingLib is "shadcn".
 - Keep visual states explicit for controls without animation-driven behavior.
 - Avoid repetitive card-grid boilerplate unless explicitly requested.
 `.trim();
@@ -70,7 +69,7 @@ Output this exact structure:
   "colorMode": "dark|light",
   "primaryColor": "#hex",
   "accentColor": "#hex",
-  "stylingLib": "css|tailwind|shadcn",
+  "stylingLib": "css|tailwind",
   "layoutDensity": "comfortable|compact",
   "components": ["ComponentName"]
 }
@@ -102,7 +101,7 @@ Rules:
 - No React Native imports
 - No local file imports of any kind (forbidden: ./, ../, /, @/)
 - No UI component library imports; compose UI using only HTML elements and Tailwind utility classes
-- Do not use shadcn-specific patterns or components even if stylingLib is "shadcn" — just apply Tailwind classes with the same design intent
+— just apply Tailwind classes with the same design intent
 - Generate static layout only: do not add animations, transitions, keyframes, or motion-library usage
 
 ${CREATIVITY_DIRECTIVE}
@@ -125,7 +124,7 @@ export const WEB_APP_SPEC_SCHEMA = {
     colorMode: { type: "string", enum: ["dark", "light"] },
     primaryColor: { type: "string" },
     accentColor: { type: "string" },
-    stylingLib: { type: "string", enum: ["css", "tailwind", "shadcn"] },
+    stylingLib: { type: "string", enum: ["css", "tailwind"] },
     layoutDensity: { type: "string", enum: ["comfortable", "compact"] },
   },
   required: [

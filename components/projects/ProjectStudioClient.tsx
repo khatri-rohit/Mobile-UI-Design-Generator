@@ -245,6 +245,9 @@ const ProjectStudioClient = ({ projectId }: ProjectStudioClientProps) => {
   const setStudioSelectedGenerationId = useProjectStudioStore(
     (state) => state.setSelectedGenerationId,
   );
+  const getGenerationRunId = useProjectStudioStore(
+    (state) => state.runtime.activeGenerationId,
+  );
 
   const canvasRef = useRef<InfiniteCanvasHandle | null>(null);
   const domRef = useRef<HTMLDivElement | null>(null);
@@ -280,7 +283,7 @@ const ProjectStudioClient = ({ projectId }: ProjectStudioClientProps) => {
     y: 0,
     k: 1,
   });
-  const [openFeedbackForm, setOpenFeedbackForm] = useState(true);
+  const [openFeedbackForm, setOpenFeedbackForm] = useState(false);
 
   const {
     activeFrameId,
@@ -1392,14 +1395,22 @@ const ProjectStudioClient = ({ projectId }: ProjectStudioClientProps) => {
   }
 
   const handleFrame = (event: React.MouseEvent<HTMLDivElement>, id: string) => {
-    logger.info("Regenerate frame requested", { id });
+    const { textContent } = event.target as HTMLDivElement;
+    logger.info("Frame clicked", textContent);
+    logger.info("Regenerate frame requested", {
+      frameId: id,
+      generationId: getGenerationRunId,
+    });
   };
 
   const handleSelectContext = (frameId: string) => {
+    selectedFrameIdRef.current = frameId;
+    activeFrameIdRef.current = frameId;
     const frame = framesRef.current.get(frameId);
     if (frame) {
       setStudioSelectedGenerationId(frame.generationId);
     }
+    setSelectedFrameId(frameId);
     enterFrame(frameId);
   };
 
@@ -1596,6 +1607,15 @@ const ProjectStudioClient = ({ projectId }: ProjectStudioClientProps) => {
                   activeFrameIdRef.current = id;
                   const frame = framesRef.current.get(id);
                   if (frame) {
+                    canvasRef.current?.zoomToRect(
+                      {
+                        x: frame.x,
+                        y: frame.y,
+                        w: frame.w,
+                        h: frame.h,
+                      },
+                      48,
+                    );
                     setStudioSelectedGenerationId(frame.generationId);
                   }
                   scheduleSnapshotPersist();
