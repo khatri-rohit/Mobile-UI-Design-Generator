@@ -88,7 +88,7 @@ export async function POST(req: NextRequest) {
         throw new Error("Missing BACKGROUND_TASK_QUEUE_PUBLIC_URL");
 
       const result = await client.publishJSON({
-        url: `${queueBaseUrl}/api/projects/${newProject.id}/meta-data`,
+        url: `${queueBaseUrl}/api/background-jobs/projects/${newProject.id}/meta-data`,
         body: { projectId: newProject.id, prompt },
       });
 

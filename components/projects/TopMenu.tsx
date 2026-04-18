@@ -5,6 +5,7 @@ import {
   ChevronLeft,
   Download,
   Menu,
+  MessageCirclePlus,
   Pencil,
   Share2,
   Trash2,
@@ -24,7 +25,8 @@ type ProjectActionId =
   | "share"
   | "download"
   | "edit"
-  | "delete";
+  | "delete"
+  | "feedback";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const projectActions: Array<{ id: ProjectActionId; label: string; icon: any }> =
@@ -34,6 +36,7 @@ const projectActions: Array<{ id: ProjectActionId; label: string; icon: any }> =
     { id: "download", label: "Download project", icon: Download },
     { id: "edit", label: "Edit", icon: Pencil },
     { id: "delete", label: "Delete project", icon: Trash2 },
+    { id: "feedback", label: "Send feedback", icon: MessageCirclePlus },
     //   { id: "duplicate", label: "Duplicate project", icon: SquareStack },
     //   { id: "help", label: "Help", icon: HelpCircle },
     //   { id: "appearance", label: "Appearance", icon: Monitor },

@@ -43,6 +43,7 @@ import logger from "@/lib/logger";
 import { GenerationPlatform, WebAppSpec } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { SandpackProvider } from "@codesandbox/sandpack-react";
+import FeedbackForm from "./FeedbackForm";
 
 const DASHBOARD_MODEL_ALIASES: string[] = [
   "gemma4:31b",
@@ -74,7 +75,8 @@ type ProjectActionId =
   | "share"
   | "download"
   | "edit"
-  | "delete";
+  | "delete"
+  | "feedback";
 
 interface ProjectStudioClientProps {
   projectId: string;
@@ -278,6 +280,7 @@ const ProjectStudioClient = ({ projectId }: ProjectStudioClientProps) => {
     y: 0,
     k: 1,
   });
+  const [openFeedbackForm, setOpenFeedbackForm] = useState(true);
 
   const {
     activeFrameId,
@@ -1076,7 +1079,7 @@ const ProjectStudioClient = ({ projectId }: ProjectStudioClientProps) => {
         captureTimeoutRef.current = setTimeout(() => {
           void onCapture();
           captureTimeoutRef.current = null;
-        }, 5000);
+        }, 8000);
 
         emitGenerationReviewLog("done");
         scheduleSnapshotPersist(resolvePersistGenerationId());
@@ -1378,6 +1381,10 @@ const ProjectStudioClient = ({ projectId }: ProjectStudioClientProps) => {
         }
         break;
       }
+      case "feedback": {
+        setOpenFeedbackForm(true);
+        break;
+      }
       default:
         alert("Unknown action: " + action);
         break;
@@ -1606,6 +1613,11 @@ const ProjectStudioClient = ({ projectId }: ProjectStudioClientProps) => {
       <ProjectMenuPanel
         title={project.title || "Untitled Project"}
         handleMenuClick={handleMenuClick}
+      />
+
+      <FeedbackForm
+        open={openFeedbackForm}
+        onOpenChange={setOpenFeedbackForm}
       />
 
       <div className="pointer-events-none absolute inset-0 z-50">
