@@ -20,6 +20,7 @@ import { motion, useReducedMotion } from "motion/react";
 import styles from "./page.module.css";
 import { Button } from "../ui/button";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
+import { useEffect, useRef, useState } from "react";
 
 const displayFont = Manrope({
   subsets: ["latin"],
@@ -77,6 +78,9 @@ const LandingPage = () => {
   const router = useRouter();
   const shouldReduceMotion = useReducedMotion();
   const standardEase: [number, number, number, number] = [0.22, 1, 0.36, 1];
+  const [isNavHidden, setIsNavHidden] = useState(false);
+  const lastScrollYRef = useRef(0);
+  const navHiddenRef = useRef(false);
 
   const reveal = (delay = 0) =>
     shouldReduceMotion
@@ -117,21 +121,50 @@ const LandingPage = () => {
     });
   };
 
+  useEffect(() => {
+    const handleScroll = () => {
+      const currentScrollY = window.scrollY;
+      const isScrollingDown = currentScrollY > lastScrollYRef.current;
+      const shouldHide = isScrollingDown && currentScrollY > 80;
+
+      if (shouldHide !== navHiddenRef.current) {
+        navHiddenRef.current = shouldHide;
+        setIsNavHidden(shouldHide);
+      }
+
+      lastScrollYRef.current = currentScrollY;
+    };
+
+    lastScrollYRef.current = window.scrollY;
+    window.addEventListener("scroll", handleScroll, { passive: true });
+
+    return () => {
+      window.removeEventListener("scroll", handleScroll);
+    };
+  }, []);
+
   return (
     <div
       data-logic-root
       className={`${styles.logicRoot} ${displayFont.variable} ${bodyFont.variable} selection:bg-(--logic-primary-fixed) selection:text-white`}
     >
-      <nav className="fixed inset-x-0 top-0 z-40 border-b border-(--logic-border-soft) bg-(--logic-bg) backdrop-blur-md">
-        <div className="mx-auto flex h-16 w-full max-w-7xl items-center justify-between px-6 lg:px-8 xl:px-12">
-          <div className="text-2xl font-black tracking-tighter text-(--logic-on-surface)">
-            LOGIC
-          </div>
+      <nav
+        className={`fixed inset-x-0 top-0 z-50 px-3 pt-3 sm:px-6 ${shouldReduceMotion ? "" : "transition-transform duration-300 ease-out"} ${isNavHidden ? "-translate-y-[140%]" : "translate-y-0"}`}
+      >
+        <div className="mx-auto flex h-14 w-full max-w-7xl items-center justify-between rounded-xl border border-(--logic-border-soft) bg-(--logic-surface-container-lowest)/90 px-3 shadow-[0_14px_36px_rgba(5,10,18,0.08)] backdrop-blur-xl sm:px-5">
+          <Link href="/" className="flex items-center gap-2">
+            <span className="text-lg font-black tracking-tight text-(--logic-on-surface) sm:text-xl">
+              LOGIC
+            </span>
+            <span className="hidden text-[10px] font-semibold uppercase tracking-[0.18em] text-(--logic-secondary) md:inline">
+              Interface Engine
+            </span>
+          </Link>
           <div className="flex items-center gap-2">
             <ThemeToggle className="border-(--logic-border) bg-(--logic-surface-container-lowest) text-(--logic-on-surface) hover:bg-(--logic-surface-container-low)" />
             <Link
               href="/sign-up"
-              className="inline-flex min-h-10 items-center rounded-md border border-(--logic-on-surface) bg-(--logic-on-surface) px-4 py-2 text-sm font-bold text-(--logic-surface-container-lowest) transition-colors hover:bg-transparent hover:text-(--logic-on-surface) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--logic-on-surface) focus-visible:ring-offset-2 focus-visible:ring-offset-(--logic-bg)"
+              className="inline-flex h-9 items-center rounded-md border border-transparent bg-(--logic-on-surface) px-3.5 text-xs font-semibold uppercase tracking-[0.08em] text-(--logic-surface-container-lowest) transition-colors hover:bg-(--logic-primary-fixed) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--logic-on-surface) focus-visible:ring-offset-2 focus-visible:ring-offset-(--logic-surface-container-lowest)"
             >
               Try Now
             </Link>
@@ -139,7 +172,7 @@ const LandingPage = () => {
         </div>
       </nav>
 
-      <main className="overflow-hidden pt-16">
+      <main className="overflow-hidden pt-20">
         <motion.section
           className="relative mx-auto md:m-0 flex min-h-screen w-full flex-col items-center gap-16 overflow-hidden px-6 py-20 lg:flex-row lg:gap-24 lg:px-8 xl:px-12 lg:py-0"
           {...reveal()}
