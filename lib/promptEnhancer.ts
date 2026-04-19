@@ -8,7 +8,6 @@ type PromptEnhancerInput = {
 
 const SKILL_SYSTEM_RULES = [
   "Use a deliberate visual concept with strong hierarchy and non-generic composition.",
-  "Prefer shadcn-style structure and semantic HTML patterns for controls and layout.",
   "Use a token mindset for color and spacing decisions (surface, primary, accent, muted).",
   "Keep controls visually clear without relying on animated interactions.",
   "Generate static layouts only: no animations, transitions, keyframes, or motion libraries.",

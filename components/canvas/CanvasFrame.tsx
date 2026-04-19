@@ -4,6 +4,12 @@ import { memo, useCallback, useEffect, useRef } from "react";
 
 import { useFrameLifecycle } from "@/components/canvas/hooks/useFrameLifecycle";
 import { CanvasFrameData } from "@/components/canvas/types";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuTrigger,
+} from "../ui/context-menu";
 
 const WEB_CHROME_H = 36;
 const MOBILE_STATUS_H = 44;
@@ -18,6 +24,7 @@ const MIN_MOBILE_W = 320;
 const MAX_MOBILE_W = 430;
 const MIN_MOBILE_H = 560;
 const MAX_MOBILE_H = 2200;
+const DRAG_ACTIVATION_THRESHOLD_PX = 3;
 
 type InteractionState =
   | {
@@ -26,6 +33,7 @@ type InteractionState =
       startClientY: number;
       startX: number;
       startY: number;
+      hasMoved: boolean;
     }
   | {
       kind: "resize";
@@ -43,6 +51,8 @@ interface CanvasFrameProps extends CanvasFrameData {
   onActivate: (id: string) => void;
   onMove: (id: string, x: number, y: number) => void;
   onResize: (id: string, w: number, h: number) => void;
+  handleFrame: (id: string) => void;
+  handleSelectContext?: (frameId: string) => void;
 }
 
 function clamp(value: number, min: number, max: number) {
@@ -60,7 +70,6 @@ export const CanvasFrame = memo(function CanvasFrame({
   content,
   editedContent,
   state,
-  thumbnail,
   error,
   isActive,
   isSelected,
@@ -69,10 +78,14 @@ export const CanvasFrame = memo(function CanvasFrame({
   onActivate,
   onMove,
   onResize,
+  handleFrame,
+  handleSelectContext,
 }: CanvasFrameProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const interactionRef = useRef<InteractionState | null>(null);
+  const contextMenuOpenRef = useRef(false);
+  const isSpacePressedRef = useRef(false);
 
   const safeScale = Math.max(scale, 0.001);
   const activeContent = editedContent ?? content;
@@ -84,6 +97,36 @@ export const CanvasFrame = memo(function CanvasFrame({
     iframeRef,
   });
 
+  const openContextMenuAt = useCallback((clientX: number, clientY: number) => {
+    const container = containerRef.current;
+    if (!container || typeof window.MouseEvent !== "function") return;
+
+    container.dispatchEvent(
+      new window.MouseEvent("contextmenu", {
+        bubbles: true,
+        cancelable: true,
+        view: window,
+        button: 2,
+        buttons: 2,
+        clientX,
+        clientY,
+      }),
+    );
+  }, []);
+
+  const requestCloseContextMenu = useCallback(() => {
+    if (!contextMenuOpenRef.current) return;
+    if (typeof window.KeyboardEvent !== "function") return;
+
+    window.dispatchEvent(
+      new window.KeyboardEvent("keydown", {
+        key: "Escape",
+        bubbles: true,
+        cancelable: true,
+      }),
+    );
+  }, []);
+
   const handleWindowPointerMove = useCallback(
     (event: PointerEvent) => {
       const interaction = interactionRef.current;
@@ -93,6 +136,21 @@ export const CanvasFrame = memo(function CanvasFrame({
       const deltaY = (event.clientY - interaction.startClientY) / safeScale;
 
       if (interaction.kind === "drag") {
+        if (!interaction.hasMoved) {
+          const movedEnough =
+            Math.abs(deltaX) >= DRAG_ACTIVATION_THRESHOLD_PX ||
+            Math.abs(deltaY) >= DRAG_ACTIVATION_THRESHOLD_PX;
+
+          if (!movedEnough) {
+            return;
+          }
+
+          interactionRef.current = {
+            ...interaction,
+            hasMoved: true,
+          };
+        }
+
         onMove(id, interaction.startX + deltaX, interaction.startY + deltaY);
         return;
       }
@@ -114,9 +172,38 @@ export const CanvasFrame = memo(function CanvasFrame({
     window.removeEventListener("pointermove", handleWindowPointerMove);
   }, [handleWindowPointerMove]);
 
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.code === "Space") {
+        isSpacePressedRef.current = true;
+      }
+    };
+
+    const handleKeyUp = (event: KeyboardEvent) => {
+      if (event.code === "Space") {
+        isSpacePressedRef.current = false;
+      }
+    };
+
+    const handleBlur = () => {
+      isSpacePressedRef.current = false;
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("keyup", handleKeyUp);
+    window.addEventListener("blur", handleBlur);
+
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("keyup", handleKeyUp);
+      window.removeEventListener("blur", handleBlur);
+    };
+  }, []);
+
   const startDrag = useCallback(
     (event: React.PointerEvent<HTMLDivElement>) => {
       if (isActive || event.button !== 0) return;
+      if (isSpacePressedRef.current) return;
 
       event.preventDefault();
       event.stopPropagation();
@@ -128,6 +215,7 @@ export const CanvasFrame = memo(function CanvasFrame({
         startClientY: event.clientY,
         startX: x,
         startY: y,
+        hasMoved: false,
       };
 
       window.addEventListener("pointermove", handleWindowPointerMove);
@@ -142,6 +230,7 @@ export const CanvasFrame = memo(function CanvasFrame({
   const startResize = useCallback(
     (event: React.PointerEvent<HTMLButtonElement>) => {
       if (isActive || event.button !== 0) return;
+      if (isSpacePressedRef.current) return;
 
       event.preventDefault();
       event.stopPropagation();
@@ -165,9 +254,41 @@ export const CanvasFrame = memo(function CanvasFrame({
   );
 
   useEffect(() => {
+    if (state !== "done") return;
+
     const handler = (event: MessageEvent) => {
-      if (event.data?.type !== "frame-dimensions") return;
       if (event.source !== iframeRef.current?.contentWindow) return;
+
+      if (event.data?.type === "frame-pointer-down") {
+        requestCloseContextMenu();
+        return;
+      }
+
+      if (event.data?.type === "frame-context-menu") {
+        const iframeBounds = iframeRef.current?.getBoundingClientRect();
+        if (!iframeBounds) return;
+
+        const localX = Number(event.data.clientX);
+        const localY = Number(event.data.clientY);
+        if (!Number.isFinite(localX) || !Number.isFinite(localY)) return;
+
+        onSelect(id);
+        handleSelectContext?.(id);
+
+        const clientX = iframeBounds.left + localX;
+        const clientY = iframeBounds.top + localY;
+
+        const reopen = () => openContextMenuAt(clientX, clientY);
+        if (contextMenuOpenRef.current) {
+          requestCloseContextMenu();
+          requestAnimationFrame(reopen);
+        } else {
+          reopen();
+        }
+        return;
+      }
+
+      if (event.data?.type !== "frame-dimensions") return;
 
       const reportedWidth = Number(event.data.width) || 0;
       const reportedHeight = Number(event.data.height) || 0;
@@ -206,7 +327,18 @@ export const CanvasFrame = memo(function CanvasFrame({
     return () => {
       window.removeEventListener("message", handler);
     };
-  }, [h, id, onResize, platform, w]);
+  }, [
+    h,
+    handleSelectContext,
+    id,
+    onResize,
+    onSelect,
+    openContextMenuAt,
+    platform,
+    requestCloseContextMenu,
+    state,
+    w,
+  ]);
 
   useEffect(() => {
     return () => stopInteraction();
@@ -227,138 +359,159 @@ export const CanvasFrame = memo(function CanvasFrame({
       : resolvedErrorMessage;
 
   return (
-    <div
-      ref={containerRef}
-      className="absolute"
-      style={{
-        left: x,
-        top: y,
-        width: w,
-        height: h,
+    <ContextMenu
+      onOpenChange={(open) => {
+        contextMenuOpenRef.current = open;
       }}
     >
-      <div className="absolute -top-6 left-0 flex items-center gap-2">
-        <span className="font-mono text-[10px] uppercase tracking-widest text-white/45">
-          {screenName}
-        </span>
-      </div>
-
-      <div
-        className="absolute inset-0 overflow-hidden rounded-lg bg-white shadow-2xl shadow-black/60"
-        style={{
-          boxShadow: isActive
-            ? "0 0 0 2px rgb(59 130 246), 0 24px 48px rgba(0,0,0,0.55)"
-            : isSelected
-              ? "0 0 0 1px rgba(255,255,255,0.28), 0 24px 48px rgba(0,0,0,0.45)"
-              : "0 0 0 1px rgba(255,255,255,0.1), 0 24px 48px rgba(0,0,0,0.35)",
-          transition: "box-shadow 0.15s ease",
-        }}
-      >
-        {platform === "web" && <BrowserChrome screenName={screenName} />}
-        {platform === "mobile" && <MobileStatusBar />}
-
-        {(state === "skeleton" || state === "streaming") && (
-          <div
-            className="absolute inset-0 flex items-center justify-center bg-[#1a1a1a]"
-            style={{ top: chromeTopHeight, height: iframeHeight }}
-          >
-            {state === "skeleton" ? <SkeletonView /> : <StreamingView />}
+      <ContextMenuTrigger asChild>
+        <div
+          ref={containerRef}
+          className="absolute"
+          style={{
+            left: x,
+            top: y,
+            width: w,
+            height: h,
+          }}
+        >
+          <div className="absolute -top-6 left-0 flex items-center gap-2">
+            <span className="font-mono text-[10px] uppercase tracking-widest text-white/45">
+              {screenName}
+            </span>
           </div>
-        )}
 
-        {state === "done" && (
-          <>
-            {thumbnail && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={thumbnail}
-                alt=""
-                className="absolute left-0 top-0 h-full w-full object-cover object-top"
-                style={{
-                  top: chromeTopHeight,
-                  height: iframeHeight,
-                  pointerEvents: "none",
-                  zIndex: 1,
-                }}
-              />
+          <div
+            className="absolute inset-0 overflow-hidden rounded-lg bg-white shadow-2xl shadow-black/60"
+            style={{
+              boxShadow: isActive
+                ? "0 0 0 2px rgb(59 130 246), 0 24px 48px rgba(0,0,0,0.55)"
+                : isSelected
+                  ? "0 0 0 1px rgba(255,255,255,0.28), 0 24px 48px rgba(0,0,0,0.45)"
+                  : "0 0 0 1px rgba(255,255,255,0.1), 0 24px 48px rgba(0,0,0,0.35)",
+              transition: "box-shadow 0.15s ease",
+            }}
+          >
+            {platform === "web" && <BrowserChrome screenName={screenName} />}
+            {platform === "mobile" && <MobileStatusBar />}
+
+            {(state === "skeleton" || state === "streaming") && (
+              <div
+                className="absolute inset-0 flex items-center justify-center bg-[#1a1a1a]"
+                style={{ top: chromeTopHeight, height: iframeHeight }}
+              >
+                {state === "skeleton" ? <SkeletonView /> : <StreamingView />}
+              </div>
             )}
-            <iframe
-              ref={iframeRef}
-              allow="cross-origin-isolated"
+
+            {state === "done" && (
+              <>
+                {/* {thumbnail && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={thumbnail}
+                    alt=""
+                    className="absolute left-0 top-0 h-full w-full object-cover object-top"
+                    style={{
+                      top: chromeTopHeight,
+                      height: iframeHeight,
+                      pointerEvents: "none",
+                      zIndex: 1,
+                    }}
+                  />
+                )} */}
+                <iframe
+                  ref={iframeRef}
+                  allow="cross-origin-isolated"
+                  style={{
+                    position: "absolute",
+                    top: chromeTopHeight,
+                    left: 0,
+                    width: "100%",
+                    height: iframeHeight,
+                    border: "none",
+                    zIndex: 2,
+                    pointerEvents: isActive ? "auto" : "none",
+                  }}
+                />
+              </>
+            )}
+
+            {state === "error" && (
+              <div
+                className="absolute inset-0 flex items-center justify-center bg-[#1a0000]"
+                style={{ top: chromeTopHeight, height: iframeHeight }}
+              >
+                <div className="max-w-[86%] px-4 text-center">
+                  <span className="font-mono text-[10px] text-red-300/90">
+                    {errorTitle}
+                  </span>
+                  <p className="mt-1 font-mono text-[9px] leading-snug text-red-200/80">
+                    {errorDetail}
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {platform === "mobile" && (
+              <div className="absolute inset-x-0 bottom-0 z-10 flex h-8.5 items-center justify-center bg-black">
+                <div className="h-1.5 w-16 rounded-full bg-white/40" />
+              </div>
+            )}
+
+            <div
+              className="absolute inset-0 z-20"
               style={{
-                position: "absolute",
-                top: chromeTopHeight,
-                left: 0,
-                width: "100%",
-                height: iframeHeight,
-                border: "none",
-                zIndex: 2,
-                pointerEvents: isActive ? "auto" : "none",
+                pointerEvents: isActive ? "none" : "auto",
+                cursor: isActive ? "default" : "move",
+              }}
+              onPointerDown={startDrag}
+              onClick={(event) => {
+                event.stopPropagation();
+                onSelect(id);
+                if (state === "done") {
+                  onActivate(id);
+                }
+              }}
+              onDoubleClick={(event) => {
+                event.stopPropagation();
+                if (state === "done") {
+                  onActivate(id);
+                }
+              }}
+              onContextMenu={() => {
+                onSelect(id);
+                handleSelectContext?.(id);
               }}
             />
-          </>
-        )}
 
-        {state === "error" && (
-          <div
-            className="absolute inset-0 flex items-center justify-center bg-[#1a0000]"
-            style={{ top: chromeTopHeight, height: iframeHeight }}
-          >
-            <div className="max-w-[86%] px-4 text-center">
-              <span className="font-mono text-[10px] text-red-300/90">
-                {errorTitle}
+            {!isActive && (
+              <button
+                type="button"
+                aria-label="Resize frame"
+                className="absolute bottom-1 right-1 z-30 h-3 w-3 rounded-sm border border-white/50 bg-black/50 hover:bg-black/70"
+                style={{ cursor: "se-resize" }}
+                onPointerDown={startResize}
+              />
+            )}
+          </div>
+
+          {isActive && (
+            <div className="absolute -top-6 left-0 z-40 pointer-events-none">
+              <span className="font-mono text-[9px] text-blue-400/70">
+                ESC to exit frame mode
               </span>
-              <p className="mt-1 font-mono text-[9px] leading-snug text-red-200/80">
-                {errorDetail}
-              </p>
             </div>
-          </div>
-        )}
-
-        {platform === "mobile" && (
-          <div className="absolute inset-x-0 bottom-0 z-10 flex h-8.5 items-center justify-center bg-black">
-            <div className="h-1.5 w-16 rounded-full bg-white/40" />
-          </div>
-        )}
-
-        <div
-          className="absolute inset-0 z-20"
-          style={{
-            pointerEvents: isActive ? "none" : "auto",
-            cursor: isActive ? "default" : "move",
-          }}
-          onPointerDown={startDrag}
-          onClick={(event) => {
-            event.stopPropagation();
-            onSelect(id);
-          }}
-          onDoubleClick={(event) => {
-            event.stopPropagation();
-            if (state === "done") {
-              onActivate(id);
-            }
-          }}
-        />
-
-        {!isActive && (
-          <button
-            type="button"
-            aria-label="Resize frame"
-            className="absolute bottom-1 right-1 z-30 h-3 w-3 rounded-sm border border-white/50 bg-black/50 hover:bg-black/70"
-            style={{ cursor: "se-resize" }}
-            onPointerDown={startResize}
-          />
-        )}
-      </div>
-
-      {isActive && (
-        <div className="absolute -top-6 left-0 z-40 pointer-events-none">
-          <span className="font-mono text-[9px] text-blue-400/70">
-            ESC to exit frame mode
-          </span>
+          )}
         </div>
-      )}
-    </div>
+      </ContextMenuTrigger>
+      {/* Context menu content can be added here */}
+      <ContextMenuContent onEscapeKeyDown={(event) => event.stopPropagation()}>
+        <ContextMenuItem onSelect={() => handleFrame(id)}>
+          Regenerate
+        </ContextMenuItem>
+      </ContextMenuContent>
+    </ContextMenu>
   );
 });
 
@@ -381,7 +534,7 @@ function SkeletonView() {
 
 function StreamingView() {
   return (
-    <div className="flex flex-col items-center gap-3">
+    <div className="flex flex-col items-center gap-3 animate-pulse">
       <div className="flex gap-1">
         {[0, 1, 2].map((index) => (
           <div
