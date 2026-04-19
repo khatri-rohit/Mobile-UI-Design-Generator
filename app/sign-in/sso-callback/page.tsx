@@ -1,8 +1,17 @@
-"use client";
-
+import type { Metadata } from "next";
 import { AuthenticateWithRedirectCallback } from "@clerk/nextjs";
 import AuthShell from "@/components/auth/AuthShell";
 import styles from "@/components/auth/auth-theme.module.css";
+
+export const metadata: Metadata = {
+  title: "Completing Sign In",
+  description: "Completing your secure single sign-on callback for LOGIC.",
+  robots: {
+    index: false,
+    follow: false,
+    nocache: true,
+  },
+};
 
 export default function SsoCallbackPage() {
   return (

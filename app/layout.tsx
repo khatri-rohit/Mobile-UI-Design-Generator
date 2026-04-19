@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 import ClerkProviders from "@/providers/clerk";
 import QueryProvider from "@/providers/tankstack-query";
 import { UserActivityStoreProvider } from "@/providers/zustand-provider";
+import { getSiteUrl } from "../lib/seo";
 
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
@@ -21,10 +22,51 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+const siteUrl = getSiteUrl();
+
 export const metadata: Metadata = {
-  title: "LOGIC - AI-Powered UI/UX Builder",
+  metadataBase: new URL(siteUrl),
+  title: {
+    default: "LOGIC | AI-Powered UI/UX Builder",
+    template: "%s | LOGIC",
+  },
   description:
-    "LOGIC is an AI-powered UI/UX builder that transforms your ideas into stunning designs. With LOGIC, you can effortlessly create beautiful and functional user interfaces for web and mobile applications. Whether you're a designer, developer, or product manager, LOGIC empowers you to bring your vision to life with ease and efficiency.",
+    "Turn plain-language product ideas into production-ready UI and UX systems. LOGIC generates responsive interfaces and clean frontend code in minutes.",
+  applicationName: "LOGIC",
+  keywords: [
+    "AI UI builder",
+    "UI UX generator",
+    "AI design tool",
+    "responsive UI generation",
+    "frontend code generation",
+    "design to code",
+  ],
+  openGraph: {
+    type: "website",
+    siteName: "LOGIC",
+    title: "LOGIC | AI-Powered UI/UX Builder",
+    description:
+      "Generate production-ready, responsive UI and UX systems from natural-language prompts.",
+    images: [
+      {
+        url: "/og-image.png",
+        width: 1200,
+        height: 630,
+        alt: "LOGIC AI UI/UX Builder",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "LOGIC | AI-Powered UI/UX Builder",
+    description:
+      "Generate production-ready, responsive UI and UX systems from natural-language prompts.",
+    images: ["/og-image.png"],
+  },
+  robots: {
+    index: true,
+    follow: true,
+  },
 };
 
 export default function RootLayout({
