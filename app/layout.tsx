@@ -5,7 +5,6 @@ import { cn } from "@/lib/utils";
 import ClerkProviders from "@/providers/clerk";
 import QueryProvider from "@/providers/tankstack-query";
 import { UserActivityStoreProvider } from "@/providers/zustand-provider";
-import { Toaster } from "@/components/ui/sonner";
 
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
@@ -36,6 +35,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
+      suppressHydrationWarning
       className={cn(
         "h-full",
         "antialiased",
@@ -53,7 +53,6 @@ export default function RootLayout({
         </UserActivityStoreProvider>
         <Analytics />
         <SpeedInsights />
-        <Toaster richColors position="top-center" />
       </body>
     </html>
   );

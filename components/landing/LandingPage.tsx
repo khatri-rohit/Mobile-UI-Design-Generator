@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { Inter, Manrope } from "next/font/google";
@@ -18,6 +19,7 @@ import {
 import { motion, useReducedMotion } from "motion/react";
 import styles from "./page.module.css";
 import { Button } from "../ui/button";
+import { ThemeToggle } from "@/components/ui/theme-toggle";
 
 const displayFont = Manrope({
   subsets: ["latin"],
@@ -120,7 +122,24 @@ const LandingPage = () => {
       data-logic-root
       className={`${styles.logicRoot} ${displayFont.variable} ${bodyFont.variable} selection:bg-(--logic-primary-fixed) selection:text-white`}
     >
-      <main className="overflow-hidden">
+      <nav className="fixed inset-x-0 top-0 z-40 border-b border-(--logic-border-soft) bg-(--logic-bg) backdrop-blur-md">
+        <div className="mx-auto flex h-16 w-full max-w-7xl items-center justify-between px-6 lg:px-8 xl:px-12">
+          <div className="text-2xl font-black tracking-tighter text-(--logic-on-surface)">
+            LOGIC
+          </div>
+          <div className="flex items-center gap-2">
+            <ThemeToggle className="border-(--logic-border) bg-(--logic-surface-container-lowest) text-(--logic-on-surface) hover:bg-(--logic-surface-container-low)" />
+            <Link
+              href="/sign-up"
+              className="inline-flex min-h-10 items-center rounded-md border border-(--logic-on-surface) bg-(--logic-on-surface) px-4 py-2 text-sm font-bold text-(--logic-surface-container-lowest) transition-colors hover:bg-transparent hover:text-(--logic-on-surface) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--logic-on-surface) focus-visible:ring-offset-2 focus-visible:ring-offset-(--logic-bg)"
+            >
+              Try Now
+            </Link>
+          </div>
+        </div>
+      </nav>
+
+      <main className="overflow-hidden pt-16">
         <motion.section
           className="relative mx-auto md:m-0 flex min-h-screen w-full flex-col items-center gap-16 overflow-hidden px-6 py-20 lg:flex-row lg:gap-24 lg:px-8 xl:px-12 lg:py-0"
           {...reveal()}
@@ -359,12 +378,12 @@ const LandingPage = () => {
         </motion.section>
       </main>
 
-      <footer className="w-full bg-[#f6f3f4] py-6">
+      <footer className="w-full border-t border-(--logic-border-soft) bg-(--logic-bg) py-6">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-8">
-          <div className="text-xl font-black tracking-tighter text-slate-900">
+          <div className="text-xl font-black tracking-tighter text-(--logic-on-surface)">
             LOGIC
           </div>
-          <div className="logic-body text-sm tracking-wide text-[#5f5e5e]">
+          <div className="logic-body text-sm tracking-wide text-(--logic-secondary)">
             © 2026 LOGIC. All rights reserved.
           </div>
         </div>

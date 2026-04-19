@@ -8,6 +8,7 @@ import { motion, useReducedMotion } from "motion/react";
 import styles from "./auth-theme.module.css";
 
 import { cn } from "@/lib/utils";
+import { ThemeToggle } from "@/components/ui/theme-toggle";
 
 const displayFont = Manrope({
   subsets: ["latin"],
@@ -121,7 +122,7 @@ export default function AuthShell({
         className={cn(styles.glowLayer, "pointer-events-none absolute inset-0")}
       />
 
-      <header className="relative z-20 border-b border-[rgba(169,180,185,0.28)] bg-[rgba(247,249,251,0.82)] backdrop-blur-sm">
+      <header className="relative z-20 border-b border-[rgba(169,180,185,0.28)] bg-[rgba(247,249,251,0.82)] backdrop-blur-sm dark:border-[rgba(95,108,125,0.45)] dark:bg-[rgba(8,12,18,0.82)]">
         <div className="mx-auto flex h-14 w-full max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-10">
           <div className="flex items-center gap-3">
             <Link
@@ -143,15 +144,18 @@ export default function AuthShell({
             </span>
           </div>
 
-          <Link
-            href={secondaryNav.href}
-            className={cn(
-              styles.labelText,
-              "logic-auth-body text-[10px] font-semibold text-(--logic-on-surface-variant) transition-colors hover:text-(--logic-primary-deep)",
-            )}
-          >
-            {secondaryNav.label}
-          </Link>
+          <div className="flex items-center gap-2">
+            <ThemeToggle className="border-[rgba(169,180,185,0.45)] bg-white/70 text-(--logic-on-surface) hover:bg-[rgba(240,244,247,0.9)] dark:border-[rgba(111,126,139,0.55)] dark:bg-[rgba(14,19,26,0.7)] dark:text-(--logic-on-surface) dark:hover:bg-[rgba(30,39,50,0.78)]" />
+            <Link
+              href={secondaryNav.href}
+              className={cn(
+                styles.labelText,
+                "logic-auth-body text-[10px] font-semibold text-(--logic-on-surface-variant) transition-colors hover:text-(--logic-primary-deep)",
+              )}
+            >
+              {secondaryNav.label}
+            </Link>
+          </div>
         </div>
       </header>
 
@@ -169,7 +173,7 @@ export default function AuthShell({
           <motion.section
             className={cn(
               styles.leftPanelSurface,
-              "relative border-b border-[rgba(169,180,185,0.3)] px-6 py-8 sm:px-10 lg:border-b-0 lg:border-r lg:border-r-[rgba(169,180,185,0.32)] lg:px-12 lg:py-14",
+              "relative border-b border-[rgba(169,180,185,0.3)] px-6 py-8 sm:px-10 dark:border-[rgba(95,108,125,0.5)] lg:border-b-0 lg:border-r lg:border-r-[rgba(169,180,185,0.32)] lg:px-12 lg:py-14 lg:dark:border-r-[rgba(95,108,125,0.5)]",
             )}
             variants={leftPanelVariants}
             initial={initialState}
@@ -265,7 +269,7 @@ export default function AuthShell({
             animate="visible"
             exit="exit"
           >
-            <div className="mb-7 flex items-center justify-between border-b border-[rgba(169,180,185,0.34)] pb-4">
+            <div className="mb-7 flex items-center justify-between border-b border-[rgba(169,180,185,0.34)] pb-4 dark:border-[rgba(95,108,125,0.5)]">
               <div>
                 <p
                   className={cn(

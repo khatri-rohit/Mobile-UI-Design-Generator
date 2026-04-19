@@ -16,6 +16,37 @@
   --logic-primary-fixed: #124af0;
   --logic-primary-deep: #002ca3;
   --logic-outline-variant: #a9b4b9;
+  --logic-border: #a9b4b9;
+  --logic-border-soft: #c8d2d8;
+  --logic-surface-muted: #edf2f6;
+  --logic-surface-subtle: #e7edf2;
+  --logic-muted: #67737d;
+
+  background: var(--logic-bg);
+  color: var(--logic-on-surface);
+}
+
+:global(.dark) .logicRoot {
+  --logic-bg: #060a10;
+  --logic-surface: #070e15;
+  --logic-surface-bright: #0b121b;
+  --logic-surface-container-low: #101b26;
+  --logic-surface-container: #162331;
+  --logic-surface-container-high: #1f3041;
+  --logic-surface-container-highest: #283a4d;
+  --logic-surface-container-lowest: #0b121a;
+  --logic-on-surface: #e9eff7;
+  --logic-on-surface-variant: #b2c0cf;
+  --logic-secondary: #95a8bc;
+  --logic-primary: #8d9eff;
+  --logic-primary-fixed: #7f9dff;
+  --logic-primary-deep: #6088ff;
+  --logic-outline-variant: #3b4c60;
+  --logic-border: #435469;
+  --logic-border-soft: #3a495d;
+  --logic-surface-muted: #111b26;
+  --logic-surface-subtle: #182332;
+  --logic-muted: #9aabbe;
 
   background: var(--logic-bg);
   color: var(--logic-on-surface);
@@ -71,6 +102,14 @@
   background: var(--logic-surface-container-high);
 }
 
+:global(.dark) .btnSecondary {
+  background: rgba(22, 33, 48, 0.88);
+}
+
+:global(.dark) .btnSecondary:hover {
+  background: rgba(31, 46, 66, 0.92);
+}
+
 .ambientShadow {
   box-shadow: 0 24px 48px rgba(28, 27, 28, 0.06);
 }
@@ -87,6 +126,15 @@
   );
   background-size: 24px 24px;
   opacity: 0.03;
+}
+
+:global(.dark) .canvasNoise {
+  background-image: radial-gradient(
+    circle at 1px 1px,
+    rgba(224, 236, 255, 0.42) 1px,
+    transparent 0
+  );
+  opacity: 0.025;
 }
 
 @media (prefers-reduced-motion: reduce) {

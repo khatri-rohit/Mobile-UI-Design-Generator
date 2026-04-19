@@ -16,6 +16,9 @@
   --logic-primary-fixed: #124af0;
   --logic-primary-deep: #002ca3;
   --logic-outline-variant: #a9b4b9;
+  --logic-border: #a9b4b9;
+  --logic-border-soft: #c8d2d8;
+  --logic-muted: #66727a;
 
   background:
     radial-gradient(
@@ -26,6 +29,41 @@
     radial-gradient(
       circle at 84% 78%,
       rgba(77, 68, 227, 0.08),
+      transparent 30%
+    ),
+    var(--logic-bg);
+  color: var(--logic-on-surface);
+}
+
+:global(.dark) .authRoot {
+  --logic-bg: #060a0f;
+  --logic-surface: #070d14;
+  --logic-surface-bright: #0b1119;
+  --logic-surface-container-low: #101824;
+  --logic-surface-container: #15202d;
+  --logic-surface-container-high: #1c2b3b;
+  --logic-surface-container-highest: #243649;
+  --logic-surface-container-lowest: #0b1018;
+  --logic-on-surface: #e8eef6;
+  --logic-on-surface-variant: #b2c0cf;
+  --logic-secondary: #94a7bc;
+  --logic-primary: #8b9dff;
+  --logic-primary-fixed: #7e9dff;
+  --logic-primary-deep: #5f87ff;
+  --logic-outline-variant: #3b4b5e;
+  --logic-border: #435368;
+  --logic-border-soft: #3a485a;
+  --logic-muted: #95a7bb;
+
+  background:
+    radial-gradient(
+      circle at 18% 20%,
+      rgba(88, 130, 255, 0.16),
+      transparent 34%
+    ),
+    radial-gradient(
+      circle at 84% 78%,
+      rgba(133, 105, 255, 0.14),
       transparent 30%
     ),
     var(--logic-bg);
@@ -275,6 +313,110 @@
   );
   background-size: 24px 24px;
   opacity: 0.04;
+}
+
+:global(.dark) .gridLayer {
+  background-image:
+    linear-gradient(to right, rgba(80, 98, 117, 0.28) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(80, 98, 117, 0.28) 1px, transparent 1px);
+  opacity: 0.36;
+}
+
+:global(.dark) .glowLayer {
+  background:
+    radial-gradient(
+      circle at 14% 16%,
+      rgba(105, 142, 255, 0.24),
+      transparent 24%
+    ),
+    radial-gradient(
+      circle at 84% 78%,
+      rgba(152, 123, 255, 0.2),
+      transparent 28%
+    );
+}
+
+:global(.dark) .shellSurface {
+  border: 1px solid rgba(92, 108, 126, 0.5);
+  background: rgba(10, 15, 22, 0.84);
+  box-shadow: 0 26px 52px rgba(0, 0, 0, 0.42);
+}
+
+:global(.dark) .leftPanelSurface {
+  background: linear-gradient(
+    180deg,
+    rgba(14, 21, 30, 0.88) 0%,
+    rgba(11, 17, 25, 0.94) 100%
+  );
+}
+
+:global(.dark) .rightPanelSurface {
+  background: rgba(9, 14, 21, 0.9);
+}
+
+:global(.dark) .accentChip,
+:global(.dark) .statCard,
+:global(.dark) .securityStrip,
+:global(.dark) .iconBadge,
+:global(.dark) .callbackCard {
+  border-color: rgba(97, 112, 130, 0.5);
+  background: rgba(17, 25, 36, 0.76);
+}
+
+:global(.dark) .formInput {
+  border-color: rgba(97, 112, 130, 0.6);
+  background: rgba(10, 15, 24, 0.85);
+  color: var(--logic-on-surface);
+}
+
+:global(.dark) .formInput::placeholder {
+  color: #94a6bb;
+}
+
+:global(.dark) .formInput:focus-visible {
+  border-color: var(--logic-primary-fixed);
+  box-shadow: 0 0 0 3px rgba(126, 157, 255, 0.28);
+}
+
+:global(.dark) .formSecondaryButton {
+  border-color: rgba(97, 112, 130, 0.58);
+  background: rgba(12, 18, 26, 0.86);
+  color: var(--logic-on-surface);
+}
+
+:global(.dark) .formSecondaryButton:hover:not(:disabled) {
+  border-color: rgba(126, 157, 255, 0.72);
+  color: #d7e3ff;
+  background: rgba(26, 38, 55, 0.78);
+}
+
+:global(.dark) .formDividerLine {
+  background: rgba(103, 118, 137, 0.52);
+}
+
+:global(.dark) .statusMessage {
+  border-color: rgba(97, 112, 130, 0.56);
+  background: rgba(18, 27, 39, 0.8);
+  color: #c8d5e5;
+}
+
+:global(.dark) .errorList {
+  border-color: rgba(255, 106, 106, 0.45);
+  background: rgba(132, 22, 22, 0.26);
+  color: #ffc8c8;
+}
+
+:global(.dark) .supportText {
+  color: #9db0c6;
+}
+
+:global(.dark) .canvasNoise {
+  background-image: radial-gradient(
+    circle at 1px 1px,
+    rgba(203, 220, 239, 0.38) 1px,
+    transparent 0
+  );
+  opacity: 0.03;
 }
 
 @media (prefers-reduced-motion: reduce) {
