@@ -81,8 +81,11 @@ const Dashboard = () => {
   const selectedModel = useUserActivityStore((state) => state.model);
   const setSelectedModel = useUserActivityStore((state) => state.setModel);
 
-  const { mutateAsync: createProject, isPending: isCreatingProject } =
-    useCreateProjectMutation();
+  const {
+    mutateAsync: createProject,
+    isPending: isCreatingProject,
+    isIdle,
+  } = useCreateProjectMutation();
   const router = useRouter();
 
   const shouldReduceMotion = useReducedMotion();
@@ -430,7 +433,7 @@ const Dashboard = () => {
                       disabled={!canSubmit}
                       className="cursor-pointer"
                     >
-                      {canSubmit ? (
+                      {isIdle ? (
                         <ArrowUp />
                       ) : (
                         <Loader2 className="animate-spin" />
