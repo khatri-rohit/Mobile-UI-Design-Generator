@@ -19,6 +19,7 @@ import { Button } from "@/components/ui/button";
 import SelectModel from "@/components/SelectModel";
 import ProjectMenuPanel from "@/components/projects/TopMenu";
 import {
+  useDeleteGenerationScreenMutation,
   useProjectCanvasStateUpdateMutation,
   useProjectDeleteMutation,
   useProjectQuery,
@@ -326,6 +327,9 @@ const ProjectStudioClient = ({ projectId }: ProjectStudioClientProps) => {
   }, [frames]);
 
   const frameRects = useMemo(() => toFrameRects(frameList), [frameList]);
+
+  const { data: deleteGenerationScreenData } =
+    useDeleteGenerationScreenMutation();
 
   const applyFrames = useCallback(
     (
@@ -1756,6 +1760,33 @@ const ProjectStudioClient = ({ projectId }: ProjectStudioClientProps) => {
     ],
   );
 
+  const handleDelete = useCallback((frameId: string) => {
+    applyFrames((current) => {
+      const frame = current.get(frameId);
+      if (!frame) return current;
+      const next = new Map(current);
+      next.delete(frameId);
+      return next;
+    });
+
+    updateStudioRuntime((runtime) => {
+      const nextFrameIdsByScreen = new Map(runtime.frameIdsByScreen);
+      const screenName = framesRef.current.get(frameId)?.screenName;
+      if (screenName) {
+        const frameIds = nextFrameIdsByScreen.get(screenName) ?? [];
+        nextFrameIdsByScreen.set(
+          screenName,
+          frameIds.filter((id) => id !== frameId),
+        );
+      }
+      return {
+        ...runtime,
+        frameIdsByScreen: nextFrameIdsByScreen,
+      };
+    });
+    scheduleSnapshotPersist();
+  }, []);
+
   useEffect(() => {
     if (projectLoading || isError) return;
 
@@ -1978,6 +2009,7 @@ const ProjectStudioClient = ({ projectId }: ProjectStudioClientProps) => {
                 onMove={handleMoveFrame}
                 onResize={handleResizeFrame}
                 handleFrame={handleFrame}
+                handleDelete={handleDelete}
               />
             ))}
           </SandpackProvider>
