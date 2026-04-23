@@ -226,7 +226,7 @@ const Dashboard = () => {
             <UserButton.MenuItems>
               <UserButton.Action
                 label="Upgrade Plan"
-                labelIcon={<Crown />}
+                labelIcon={<Crown size={14} strokeWidth={1.8} />}
                 onClick={() => setPricingModalOpen(true)}
               />
             </UserButton.MenuItems>
