@@ -1,156 +1,167 @@
 "use client";
 
-import { Check, X } from "lucide-react";
+import { Check, Sparkles } from "lucide-react";
 import { motion, useReducedMotion } from "motion/react";
-import { revealAnimation } from "@/lib/utils";
+import { cn, revealAnimation } from "@/lib/utils";
 import styles from "./page.module.css";
-import { CheckoutButton } from "../billing/CheckoutButton";
-
-type PricingFeature = {
-  label: string;
-  included: boolean;
-};
-
-type PricingTier = {
-  name: "FREE" | "STANDARD" | "PRO";
-  price: string;
-  description: string;
-  features: PricingFeature[];
-  ctaLabel: string;
-  featured?: boolean;
-};
-
-const PRICING_TIERS: PricingTier[] = [
-  {
-    name: "FREE",
-    price: "\u20b90",
-    description: "Perfect for exploring the capabilities.",
-    ctaLabel: "Start Free",
-    features: [
-      { label: "10 Generations / month", included: true },
-      { label: "3 Projects", included: true },
-      { label: "Frame regeneration", included: false },
-      { label: "Team seats", included: false },
-    ],
-  },
-  {
-    name: "STANDARD",
-    price: "\u20b91,499",
-    description: "For dedicated designers and solo devs.",
-    ctaLabel: "Upgrade to Standard",
-    featured: true,
-    features: [
-      { label: "100 Generations / month", included: true },
-      { label: "Unlimited Projects", included: true },
-      { label: "Frame regeneration", included: true },
-      { label: "Team seats", included: false },
-    ],
-  },
-  {
-    name: "PRO",
-    price: "\u20b93,999",
-    description: "For scaling teams and agencies.",
-    ctaLabel: "Go Pro",
-    features: [
-      { label: "Unlimited Generations", included: true },
-      { label: "Unlimited Projects", included: true },
-      { label: "Frame regeneration", included: true },
-      { label: "Up to 5 Team seats", included: true },
-    ],
-  },
-];
+import { useRouter } from "next/navigation";
+import { Button } from "../ui/button";
+// import { LANDING_PLANS } from "@/lib/pricing";
 
 export function PricingSection() {
+  const router = useRouter();
   const shouldReduceMotion = useReducedMotion();
   const reveal = (delay = 0) => revealAnimation(shouldReduceMotion, delay);
+
+  // Plan data array (inside LandingPage component)
+  const LANDING_PLANS = [
+    {
+      id: "FREE" as const,
+      name: "Free",
+      price: "₹0",
+      period: "",
+      description: "Explore what LOGIC can do.",
+      highlight: false,
+      features: [
+        "10 generations / month",
+        "3 projects",
+        // "1 AI model (Gemma 4)",
+        "Community support",
+      ],
+      cta: "Start for free",
+    },
+    {
+      id: "STANDARD" as const,
+      name: "Standard",
+      price: "₹1,499",
+      period: "/mo",
+      description: "For solo designers and developers.",
+      highlight: false,
+      features: [
+        "100 generations / month",
+        "Unlimited projects",
+        // "4 AI models",
+        "Frame regeneration",
+        "Canvas export",
+        "Email support",
+      ],
+      cta: "Get Standard",
+    },
+    {
+      id: "PRO" as const,
+      name: "Pro",
+      price: "₹3,999",
+      period: "/mo",
+      description: "For teams that ship fast.",
+      highlight: true,
+      features: [
+        "Unlimited generations",
+        "Unlimited projects",
+        // "All AI models",
+        "Frame regeneration",
+        "Canvas export",
+        "Up to 5 team seats",
+        "50 generation rollover",
+        "Priority support",
+      ],
+      cta: "Get Pro",
+    },
+  ];
+
+  const handleLandingPlanCta = (planId: "FREE" | "STANDARD" | "PRO") => {
+    if (planId === "FREE") {
+      router.push("/sign-up");
+      return;
+    }
+    // Store intent so post-sign-up flow can pick it up
+    try {
+      sessionStorage.setItem("pendingPlanId", planId);
+    } catch {
+      /* ignore */
+    }
+    router.push("/sign-up");
+  };
 
   return (
     <section
       id="pricing"
-      aria-labelledby="pricing-heading"
-      className="border-y border-(--logic-border-soft) bg-(--logic-surface) py-32"
+      className="bg-(--logic-surface-container-low) py-32 border-t border-(--logic-border-soft)"
     >
       <div className="mx-auto max-w-7xl px-8 lg:px-24">
-        <motion.div
-          className="mx-auto mb-16 max-w-2xl text-center"
-          {...reveal()}
-        >
+        <motion.div className="mb-20 max-w-2xl mx-auto" {...reveal()}>
           <h2
-            id="pricing-heading"
             className={`${styles.displayText} mb-4 text-4xl font-bold text-(--logic-on-surface) lg:text-5xl`}
           >
-            Pricing that scales.
+            Simple, Transparent Pricing
           </h2>
           <p className="logic-body text-lg text-(--logic-secondary)">
-            Choose the tier that fits your workflow. No hidden fees, just raw
-            generative power.
+            Start free. Scale when you need to.
           </p>
         </motion.div>
 
-        <div className="grid grid-cols-1 gap-8 md:grid-cols-3 md:items-start">
-          {PRICING_TIERS.map((tier, index) => (
-            <motion.article
-              key={tier.name}
-              className={`relative flex h-full flex-col rounded-xl border border-(--logic-border-soft) bg-(--logic-surface-container-lowest) p-8 ${styles.ambientShadow} ${tier.featured ? styles.pricingFeaturedCard : ""}`}
-              {...reveal(index * 0.08)}
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+          {LANDING_PLANS.map((plan, index) => (
+            <motion.div
+              key={plan.id}
+              className={cn(
+                "relative flex flex-col rounded-2xl border p-8",
+                plan.highlight
+                  ? "border-(--logic-primary-fixed)/40 bg-(--logic-surface-container-lowest)"
+                  : "border-(--logic-border-soft) bg-(--logic-surface-container-lowest)",
+                styles.cardShadow,
+              )}
+              {...reveal(index * 0.06)}
             >
-              {tier.featured ? (
-                <div className="pointer-events-none absolute inset-x-0 -top-4 flex justify-center">
-                  <span className={styles.pricingBadge}>Most Popular</span>
-                </div>
-              ) : null}
+              {plan.highlight && (
+                <span className="absolute -top-3 left-8 inline-flex items-center gap-1.5 rounded-full bg-(--logic-primary-fixed) px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-white">
+                  <Sparkles className="size-3" /> Most Popular
+                </span>
+              )}
 
-              <div className="mb-8">
-                <h3 className="mb-2 text-xl font-bold text-(--logic-on-surface)">
-                  {tier.name}
-                </h3>
-                <div className="mb-2 flex items-end gap-1">
-                  <span className="text-4xl font-extrabold text-(--logic-on-surface)">
-                    {tier.price}
-                  </span>
-                  <span className="logic-body pb-1 text-sm text-(--logic-secondary)">
-                    /mo
-                  </span>
-                </div>
-                <p className="logic-body text-sm text-(--logic-secondary)">
-                  {tier.description}
-                </p>
+              <p className="text-sm font-semibold uppercase tracking-widest text-(--logic-secondary)">
+                {plan.name}
+              </p>
+              <div className="mt-3 flex items-baseline gap-1">
+                <span className="text-4xl font-extrabold text-(--logic-on-surface)">
+                  {plan.price}
+                </span>
+                <span className="text-sm text-(--logic-secondary)">
+                  {plan.period}
+                </span>
               </div>
+              <p className="logic-body mt-2 text-sm text-(--logic-secondary)">
+                {plan.description}
+              </p>
 
-              <ul className="mb-8 flex flex-1 flex-col gap-4">
-                {tier.features.map((feature) => (
+              <ul className="mt-8 flex flex-col gap-3">
+                {plan.features.map((feature) => (
                   <li
-                    key={feature.label}
-                    className={`logic-body flex items-center gap-3 text-sm ${feature.included ? "text-(--logic-on-surface)" : "text-(--logic-muted)"}`}
+                    key={feature}
+                    className="flex items-center gap-2.5 text-sm text-(--logic-on-surface)"
                   >
-                    {feature.included ? (
-                      <Check
-                        className="h-4 w-4 text-(--logic-primary-fixed)"
-                        aria-hidden
-                      />
-                    ) : (
-                      <X
-                        className="h-4 w-4 text-(--logic-border)"
-                        aria-hidden
-                      />
-                    )}
-                    <span>{feature.label}</span>
+                    <Check className="size-4 shrink-0 text-(--logic-primary-fixed)" />
+                    {feature}
                   </li>
                 ))}
               </ul>
 
-              <CheckoutButton
-                className={
-                  tier.featured
-                    ? `${styles.pricingPrimaryCta} logic-body`
-                    : `${styles.pricingSecondaryCta} logic-body`
-                }
-                planId={tier.name}
-                label={tier.ctaLabel}
-              />
-            </motion.article>
+              <Button
+                type="button"
+                onClick={() => handleLandingPlanCta(plan.id)}
+                className={cn(
+                  "logic-body mt-auto pt-8 w-full rounded-md py-6 font-semibold text-sm",
+                  plan.highlight ? styles.btnPrimary : styles.btnSecondary,
+                )}
+              >
+                {plan.cta}
+              </Button>
+            </motion.div>
           ))}
         </div>
+
+        <p className="mt-8 text-center text-sm text-(--logic-secondary)">
+          All prices include 18% GST. Cancel anytime.
+        </p>
       </div>
     </section>
   );

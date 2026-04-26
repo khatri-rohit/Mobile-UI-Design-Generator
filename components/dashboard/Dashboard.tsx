@@ -36,7 +36,8 @@ import {
 import SideBar from "./SideBar";
 import { useUserActivityStore } from "@/providers/zustand-provider";
 import { useCreateProjectMutation } from "@/lib/projects/queries";
-import PricingModel from "./PricingModel";
+import { useOrgQuery } from "@/lib/org/queries";
+import { PricingModal } from "./PricingModal";
 
 const mono = JetBrains_Mono({
   subsets: ["latin"],
@@ -92,7 +93,7 @@ const Dashboard = () => {
   const router = useRouter();
 
   const shouldReduceMotion = useReducedMotion();
-
+  const { data: org } = useOrgQuery();
   const [error, setError] = useState<string | null>(null);
   const [command, setCommand] = useState("");
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -213,19 +214,31 @@ const Dashboard = () => {
           </span>
         </div>
 
-        <PricingModel
-          open={isPricingModalOpen}
-          onOpenChange={setPricingModalOpen}
-        />
-
+        {isPricingModalOpen && (
+          <PricingModal
+            open={isPricingModalOpen}
+            onOpenChange={setPricingModalOpen}
+          />
+        )}
+        {org && (
+          <span
+            className={cn(
+              "text-[9px] uppercase tracking-[0.2em] px-1.5 py-0.5 rounded border border-amber-500/30 text-amber-300/70",
+              mono.className,
+            )}
+          >
+            {org.seatCount}/{org.maxSeats} seats
+          </span>
+        )}
         <div className="flex items-center gap-2">
           <UserButton
             appearance={clerkUserButtonAppearance}
             userProfileProps={{ appearance: clerkUserProfileAppearance }}
           >
+            <UserButton.Action label="manageAccount" />
             <UserButton.MenuItems>
               <UserButton.Action
-                label="Upgrade Plan"
+                label="Manage Subscription"
                 labelIcon={<Crown size={14} strokeWidth={1.8} />}
                 onClick={() => setPricingModalOpen(true)}
               />
@@ -406,7 +419,7 @@ const Dashboard = () => {
                         <SelectItem value="deepseek-v3.1:671b">
                           deepseek-v3.1
                         </SelectItem>
-                        <SelectItem value="deepseek-v3.2">
+                        <SelectItem value="deepseek-v3.2:cloud">
                           deepseek-v3.2
                         </SelectItem>
                       </SelectGroup>
@@ -518,6 +531,7 @@ const Dashboard = () => {
           </motion.section>
         </main>
       </div>
+      <Payment />
     </div>
   );
 };

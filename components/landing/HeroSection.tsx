@@ -5,11 +5,7 @@ import { useRouter } from "next/navigation";
 import { ArrowRight, PlayCircle, Sparkles } from "lucide-react";
 import { motion, useReducedMotion } from "motion/react";
 import { Button } from "@/components/ui/button";
-import {
-  DEFAULT_PROMPT,
-  heroVisualRevealAnimation,
-  revealAnimation,
-} from "@/lib/utils";
+import { heroVisualRevealAnimation, revealAnimation } from "@/lib/utils";
 import styles from "./page.module.css";
 import { VideoModal } from "./VideoModal";
 import { useState } from "react";
@@ -23,11 +19,6 @@ export function HeroSection() {
   const heroVisualReveal = heroVisualRevealAnimation(shouldReduceMotion);
 
   const startOnboarding = () => {
-    try {
-      sessionStorage.setItem("initialPrompt", DEFAULT_PROMPT);
-    } catch {
-      // Continue if session storage is unavailable.
-    }
     router.push("/sign-up");
   };
 

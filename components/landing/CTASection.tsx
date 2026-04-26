@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { motion, useReducedMotion } from "motion/react";
 import { Button } from "@/components/ui/button";
-import { DEFAULT_PROMPT, revealAnimation } from "@/lib/utils";
+import { revealAnimation } from "@/lib/utils";
 import styles from "./page.module.css";
 
 export function CTASection() {
@@ -12,11 +12,6 @@ export function CTASection() {
   const reveal = () => revealAnimation(shouldReduceMotion);
 
   const startOnboarding = () => {
-    try {
-      sessionStorage.setItem("initialPrompt", DEFAULT_PROMPT);
-    } catch {
-      // Continue if session storage is unavailable.
-    }
     router.push("/sign-up");
   };
 
