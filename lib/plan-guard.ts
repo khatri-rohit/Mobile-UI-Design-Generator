@@ -2,11 +2,11 @@ import { NextResponse } from "next/server";
 import { AppAuthContext } from "@/lib/get-auth";
 import { getPlanConfig, isModelAllowed } from "@/lib/plans";
 import { getOrCreateUsagePeriod, UsageContext } from "@/lib/usage";
-// import {
-//   createOrganisation,
-//   hasAvailableSeat,
-//   ORG_MAX_SEATS_PRO,
-// } from "@/lib/org";
+import {
+  createOrganisation,
+  hasAvailableSeat,
+  ORG_MAX_SEATS_PRO,
+} from "@/lib/org";
 import prisma from "./prisma";
 
 export type PlanGuardResult =
@@ -176,106 +176,106 @@ export async function guardFrameRegeneration(
  * Requires PRO personal plan (not just effective plan).
  * An org member who inherits PRO cannot create a second org — only their own PRO subscription qualifies.
  */
-// export async function guardOrgCreation(
-//   authContext: AppAuthContext,
-// ): Promise<PlanGuardResult> {
-//   // Must have PERSONAL PRO, not just org-inherited PRO
-//   if (authContext.planId !== "PRO") {
-//     return {
-//       allowed: false,
-//       response: NextResponse.json(
-//         {
-//           error: true,
-//           code: "PRO_REQUIRED",
-//           message: "Creating an organisation requires a Pro subscription.",
-//           data: { upgradeUrl: "/billing/upgrade" },
-//         },
-//         { status: 402 },
-//       ),
-//     };
-//   }
+export async function guardOrgCreation(
+  authContext: AppAuthContext,
+): Promise<PlanGuardResult> {
+  // Must have PERSONAL PRO, not just org-inherited PRO
+  if (authContext.planId !== "PRO") {
+    return {
+      allowed: false,
+      response: NextResponse.json(
+        {
+          error: true,
+          code: "PRO_REQUIRED",
+          message: "Creating an organisation requires a Pro subscription.",
+          data: { upgradeUrl: "/billing/upgrade" },
+        },
+        { status: 402 },
+      ),
+    };
+  }
 
-//   // Cannot create a second org
-//   const existing = await prisma.organisation.findUnique({
-//     where: { ownerId: authContext.appUserId },
-//     select: { id: true },
-//   });
+  // Cannot create a second org
+  const existing = await prisma.organisation.findUnique({
+    where: { ownerId: authContext.appUserId },
+    select: { id: true },
+  });
 
-//   if (existing) {
-//     return {
-//       allowed: false,
-//       response: NextResponse.json(
-//         {
-//           error: true,
-//           code: "ORG_ALREADY_EXISTS",
-//           message:
-//             "You already own an organisation. A Pro account can own only one organisation.",
-//         },
-//         { status: 409 },
-//       ),
-//     };
-//   }
+  if (existing) {
+    return {
+      allowed: false,
+      response: NextResponse.json(
+        {
+          error: true,
+          code: "ORG_ALREADY_EXISTS",
+          message:
+            "You already own an organisation. A Pro account can own only one organisation.",
+        },
+        { status: 409 },
+      ),
+    };
+  }
 
-//   // Fake UsageContext — org creation has no usage to return
-//   return { allowed: true, usage: null as never };
-// }
+  // Fake UsageContext — org creation has no usage to return
+  return { allowed: true, usage: null as never };
+}
 
-// /**
-//  * Guard for POST /api/org/invite — can this user invite a new member?
-//  * Checks both org ownership/admin role and available seat count.
-//  */
-// export async function guardOrgInvite(
-//   authContext: AppAuthContext,
-//   organisationId: string,
-// ): Promise<PlanGuardResult> {
-//   if (!authContext.isOrgOwner && authContext.orgRole !== "ADMIN") {
-//     return {
-//       allowed: false,
-//       response: NextResponse.json(
-//         {
-//           error: true,
-//           code: "FORBIDDEN",
-//           message: "Only org owners and admins can invite members.",
-//         },
-//         { status: 403 },
-//       ),
-//     };
-//   }
+/**
+ * Guard for POST /api/org/invite — can this user invite a new member?
+ * Checks both org ownership/admin role and available seat count.
+ */
+export async function guardOrgInvite(
+  authContext: AppAuthContext,
+  organisationId: string,
+): Promise<PlanGuardResult> {
+  if (!authContext.isOrgOwner && authContext.orgRole !== "ADMIN") {
+    return {
+      allowed: false,
+      response: NextResponse.json(
+        {
+          error: true,
+          code: "FORBIDDEN",
+          message: "Only org owners and admins can invite members.",
+        },
+        { status: 403 },
+      ),
+    };
+  }
 
-//   const org = await prisma.organisation.findUnique({
-//     where: { id: organisationId },
-//     select: { maxSeats: true },
-//   });
+  const org = await prisma.organisation.findUnique({
+    where: { id: organisationId },
+    select: { maxSeats: true },
+  });
 
-//   if (!org) {
-//     return {
-//       allowed: false,
-//       response: NextResponse.json(
-//         {
-//           error: true,
-//           code: "ORG_NOT_FOUND",
-//           message: "Organisation not found.",
-//         },
-//         { status: 404 },
-//       ),
-//     };
-//   }
+  if (!org) {
+    return {
+      allowed: false,
+      response: NextResponse.json(
+        {
+          error: true,
+          code: "ORG_NOT_FOUND",
+          message: "Organisation not found.",
+        },
+        { status: 404 },
+      ),
+    };
+  }
 
-//   const seatAvailable = await hasAvailableSeat(organisationId, org.maxSeats);
-//   if (!seatAvailable) {
-//     return {
-//       allowed: false,
-//       response: NextResponse.json(
-//         {
-//           error: true,
-//           code: "SEAT_LIMIT_REACHED",
-//           message: `This organisation has reached its ${org.maxSeats}-seat limit.`,
-//           data: { maxSeats: org.maxSeats, upgradeUrl: "/billing/upgrade" },
-//         },
-//         { status: 402 },
-//       ),
-//     };
-//   }
+  const seatAvailable = await hasAvailableSeat(organisationId, org.maxSeats);
+  if (!seatAvailable) {
+    return {
+      allowed: false,
+      response: NextResponse.json(
+        {
+          error: true,
+          code: "SEAT_LIMIT_REACHED",
+          message: `This organisation has reached its ${org.maxSeats}-seat limit.`,
+          data: { maxSeats: org.maxSeats, upgradeUrl: "/billing/upgrade" },
+        },
+        { status: 402 },
+      ),
+    };
+  }
 
-//   return { allowed: true, usage: null as never };
-// }
+  return { allowed: true, usage: null as never };
+}

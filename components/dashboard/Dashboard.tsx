@@ -531,7 +531,6 @@ const Dashboard = () => {
           </motion.section>
         </main>
       </div>
-      <Payment />
     </div>
   );
 };
