@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { motion, useReducedMotion } from "motion/react";
 import { JetBrains_Mono } from "next/font/google";
 import { useRouter } from "next/navigation";
-import { Loader2, LucideIcon } from "lucide-react";
+import { Crown, Loader2, LucideIcon } from "lucide-react";
 import {
   ArrowUp,
   Bolt,
@@ -18,6 +18,8 @@ import {
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
+import { useSpeechRecognition } from "../../lib/hooks/useSpeechRecognition";
 import {
   Select,
   SelectContent,
@@ -36,6 +38,9 @@ import {
 import SideBar from "./SideBar";
 import { useUserActivityStore } from "@/providers/zustand-provider";
 import { useCreateProjectMutation } from "@/lib/projects/queries";
+import { useOrgQuery } from "@/lib/org/queries";
+import { PricingModal } from "./PricingModal";
+import logger from "@/lib/logger";
 
 const mono = JetBrains_Mono({
   subsets: ["latin"],
@@ -91,27 +96,28 @@ const Dashboard = () => {
   const router = useRouter();
 
   const shouldReduceMotion = useReducedMotion();
-
+  const { data: org } = useOrgQuery();
   const [error, setError] = useState<string | null>(null);
   const [command, setCommand] = useState("");
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isPricingModalOpen, setPricingModalOpen] = useState(false);
 
   const commandInputRef = useRef<HTMLTextAreaElement | null>(null);
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const launcherButtonRef = useRef<HTMLButtonElement | null>(null);
 
-  useEffect(() => {
-    const promptInput = commandInputRef.current;
+  const {
+    isListening,
+    error: speechError,
+    isSupported: isSpeechSupported,
+    startListening,
+    stopListening,
+    clearTranscript,
+    onTranscriptReady,
+  } = useSpeechRecognition("en-US");
+  // logger.log("Speech recognition support:", isSpeechSupported);
+  // logger.log("Speech recognition speechError:", speechError);
 
-    if (!promptInput) {
-      return;
-    }
-
-    promptInput.style.height = "0px";
-    const nextHeight = Math.min(promptInput.scrollHeight, MAX_PROMPT_HEIGHT);
-    promptInput.style.height = `${nextHeight}px`;
-    promptInput.style.overflowY =
-      promptInput.scrollHeight > MAX_PROMPT_HEIGHT ? "auto" : "hidden";
-  }, [command]);
+  const canSubmit = command.trim().length > 0 && !isCreatingProject;
 
   const fadeUp = (delay = 0) =>
     shouldReduceMotion
@@ -138,8 +144,6 @@ const Dashboard = () => {
             ease: [0.22, 1, 0.36, 1] as [number, number, number, number],
           },
         };
-
-  const canSubmit = command.trim().length > 0 && !isCreatingProject;
 
   const handleQuickAction = (action: (typeof quickActions)[number]) => {
     setCommand(action.prompt);
@@ -177,6 +181,35 @@ const Dashboard = () => {
     }
   };
 
+  useEffect(() => {
+    const promptInput = commandInputRef.current;
+
+    if (!promptInput) {
+      return;
+    }
+
+    promptInput.style.height = "0px";
+    const nextHeight = Math.min(promptInput.scrollHeight, MAX_PROMPT_HEIGHT);
+    promptInput.style.height = `${nextHeight}px`;
+    promptInput.style.overflowY =
+      promptInput.scrollHeight > MAX_PROMPT_HEIGHT ? "auto" : "hidden";
+  }, [command]);
+
+  // Show toast error when speech recognition fails
+  useEffect(() => {
+    if (speechError) {
+      toast.error(speechError);
+    }
+  }, [speechError]);
+
+  // Set up callback for when speech is ready to be added to command
+  useEffect(() => {
+    onTranscriptReady((recognizedText: string) => {
+      setCommand((prev) => `${prev.trim()} ${recognizedText}`.trim());
+      clearTranscript();
+    });
+  }, [clearTranscript, onTranscriptReady]);
+
   return (
     <div
       className={cn(
@@ -211,14 +244,34 @@ const Dashboard = () => {
           </span>
         </div>
 
+        {isPricingModalOpen && (
+          <PricingModal
+            open={isPricingModalOpen}
+            onOpenChange={setPricingModalOpen}
+          />
+        )}
+        {org && (
+          <span
+            className={cn(
+              "hidden md:block text-[9px] uppercase tracking-[0.2em] px-1.5 py-0.5 rounded border border-amber-500/30 text-amber-300/70",
+              mono.className,
+            )}
+          >
+            {org.seatCount}/{org.maxSeats} seats
+          </span>
+        )}
         <div className="flex items-center gap-2">
           <UserButton
             appearance={clerkUserButtonAppearance}
-            userProfileMode="modal"
             userProfileProps={{ appearance: clerkUserProfileAppearance }}
           >
+            <UserButton.Action label="manageAccount" />
             <UserButton.MenuItems>
-              <UserButton.Action label="manageAccount" />
+              <UserButton.Action
+                label="Manage Subscription"
+                labelIcon={<Crown size={14} strokeWidth={1.8} />}
+                onClick={() => setPricingModalOpen(true)}
+              />
             </UserButton.MenuItems>
           </UserButton>
 
@@ -396,6 +449,9 @@ const Dashboard = () => {
                         <SelectItem value="deepseek-v3.1:671b">
                           deepseek-v3.1
                         </SelectItem>
+                        <SelectItem value="deepseek-v3.2:cloud">
+                          deepseek-v3.2
+                        </SelectItem>
                       </SelectGroup>
                     </SelectContent>
                   </Select>
@@ -435,7 +491,29 @@ const Dashboard = () => {
                     <Button
                       variant="ghost"
                       size="icon-sm"
-                      aria-label="Voice input"
+                      aria-label={
+                        isListening ? "Stop recording" : "Start voice input"
+                      }
+                      aria-pressed={isListening}
+                      onClick={() => {
+                        if (isListening) {
+                          stopListening();
+                          return;
+                        }
+
+                        startListening();
+                      }}
+                      disabled={!isSpeechSupported}
+                      className={cn(
+                        isListening && "bg-destructive/20 text-destructive",
+                      )}
+                      title={
+                        !isSpeechSupported
+                          ? "Speech recognition not supported in your browser"
+                          : isListening
+                            ? "Recording... Press to stop"
+                            : "Click to start recording"
+                      }
                     >
                       <Mic />
                     </Button>
@@ -482,24 +560,24 @@ const Dashboard = () => {
                       {canSubmit ? "Prompt Ready" : "System Ready"}
                     </span>
                   </div>
-                  <span
+                  {/* <span
                     className={cn(
                       "text-[9px] uppercase tracking-[0.2em] text-muted-foreground/75",
                       mono.className,
                     )}
                   >
-                    Projects: 1
-                  </span>
+                    Projects: 
+                  </span> */}
                 </div>
 
-                <span
+                {/* <span
                   className={cn(
                     "text-[9px] uppercase tracking-[0.2em] text-muted-foreground/75",
                     mono.className,
                   )}
                 >
                   Tokens: 4.2k available
-                </span>
+                </span> */}
               </motion.div>
             </motion.section>
           </motion.section>
