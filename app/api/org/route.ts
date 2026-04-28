@@ -9,6 +9,7 @@ import {
 } from "@/lib/org";
 import { guardOrgCreation } from "@/lib/plan-guard";
 import prisma from "@/lib/prisma";
+import logger from "@/lib/logger";
 
 const createBodySchema = z.object({
   name: z.string().trim().min(2).max(80),
@@ -48,6 +49,11 @@ export async function GET(req: NextRequest) {
       },
     });
 
+    if (!org) {
+      logger.error("Organisation not found", { org, orgId: authContext.orgId });
+      return NextResponse.json({ error: false, data: null }, { status: 404 });
+    }
+
     const seatCount = await getActiveSeatCount(authContext.orgId);
 
     return NextResponse.json({
@@ -59,6 +65,7 @@ export async function GET(req: NextRequest) {
       },
     });
   } catch (error) {
+    logger.error("Failed to fetch organisation", { error });
     if (isAuthError(error))
       return NextResponse.json(
         { error: true, code: error.code, message: error.message },
@@ -95,6 +102,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ error: false, data: org }, { status: 201 });
   } catch (error) {
+    logger.error("Failed to create organisation", { error });
     if (isAuthError(error))
       return NextResponse.json(
         { error: true, code: error.code, message: error.message },
@@ -134,6 +142,7 @@ export async function DELETE(req: NextRequest) {
       message: "Organisation dissolved.",
     });
   } catch (error) {
+    logger.error("Failed to dissolve organisation", { error });
     if (isAuthError(error))
       return NextResponse.json(
         { error: true, code: error.code, message: error.message },

@@ -18,6 +18,8 @@ import {
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
+import { useSpeechRecognition } from "../../lib/hooks/useSpeechRecognition";
 import {
   Select,
   SelectContent,
@@ -38,6 +40,7 @@ import { useUserActivityStore } from "@/providers/zustand-provider";
 import { useCreateProjectMutation } from "@/lib/projects/queries";
 import { useOrgQuery } from "@/lib/org/queries";
 import { PricingModal } from "./PricingModal";
+import logger from "@/lib/logger";
 
 const mono = JetBrains_Mono({
   subsets: ["latin"],
@@ -101,6 +104,18 @@ const Dashboard = () => {
 
   const commandInputRef = useRef<HTMLTextAreaElement | null>(null);
   const launcherButtonRef = useRef<HTMLButtonElement | null>(null);
+
+  const {
+    isListening,
+    error: speechError,
+    isSupported: isSpeechSupported,
+    startListening,
+    stopListening,
+    clearTranscript,
+    onTranscriptReady,
+  } = useSpeechRecognition("en-US");
+  logger.log("Speech recognition support:", isSpeechSupported);
+  logger.log("Speech recognition speechError:", speechError);
 
   const canSubmit = command.trim().length > 0 && !isCreatingProject;
 
@@ -180,6 +195,21 @@ const Dashboard = () => {
       promptInput.scrollHeight > MAX_PROMPT_HEIGHT ? "auto" : "hidden";
   }, [command]);
 
+  // Show toast error when speech recognition fails
+  useEffect(() => {
+    if (speechError) {
+      toast.error(speechError);
+    }
+  }, [speechError]);
+
+  // Set up callback for when speech is ready to be added to command
+  useEffect(() => {
+    onTranscriptReady((recognizedText: string) => {
+      setCommand((prev) => `${prev.trim()} ${recognizedText}`.trim());
+      clearTranscript();
+    });
+  }, [clearTranscript, onTranscriptReady]);
+
   return (
     <div
       className={cn(
@@ -223,7 +253,7 @@ const Dashboard = () => {
         {org && (
           <span
             className={cn(
-              "text-[9px] uppercase tracking-[0.2em] px-1.5 py-0.5 rounded border border-amber-500/30 text-amber-300/70",
+              "hidden md:block text-[9px] uppercase tracking-[0.2em] px-1.5 py-0.5 rounded border border-amber-500/30 text-amber-300/70",
               mono.className,
             )}
           >
@@ -461,7 +491,36 @@ const Dashboard = () => {
                     <Button
                       variant="ghost"
                       size="icon-sm"
-                      aria-label="Voice input"
+                      aria-label={
+                        isListening ? "Stop recording" : "Start voice input"
+                      }
+                      aria-pressed={isListening}
+                      onClick={() => {
+                        if (!isSpeechSupported) {
+                          toast.error(
+                            "Speech recognition is not supported in this browser.",
+                          );
+                          return;
+                        }
+
+                        if (isListening) {
+                          stopListening();
+                          return;
+                        }
+
+                        startListening();
+                      }}
+                      disabled={!isSpeechSupported}
+                      className={cn(
+                        isListening && "bg-destructive/20 text-destructive",
+                      )}
+                      title={
+                        !isSpeechSupported
+                          ? "Speech recognition not supported in your browser"
+                          : isListening
+                            ? "Recording... Press to stop"
+                            : "Click to start recording"
+                      }
                     >
                       <Mic />
                     </Button>
@@ -508,14 +567,14 @@ const Dashboard = () => {
                       {canSubmit ? "Prompt Ready" : "System Ready"}
                     </span>
                   </div>
-                  <span
+                  {/* <span
                     className={cn(
                       "text-[9px] uppercase tracking-[0.2em] text-muted-foreground/75",
                       mono.className,
                     )}
                   >
-                    Projects: 1
-                  </span>
+                    Projects: 
+                  </span> */}
                 </div>
 
                 {/* <span
