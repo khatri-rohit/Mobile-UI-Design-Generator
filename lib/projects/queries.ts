@@ -252,6 +252,7 @@ export async function updateProjectCanvasState(
       "Content-Type": "application/json",
     },
     body: JSON.stringify({ canvasState, generationId }),
+    keepalive: true, // Allow the request to outlive the page if the user navigates away
   });
 }
 

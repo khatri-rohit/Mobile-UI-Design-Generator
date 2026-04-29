@@ -194,13 +194,57 @@ function coerceSpec(
 }
 
 function parseJsonStrict<T>(raw: string): T {
+  // Strip markdown code fences first
+  const stripped = raw
+    .replace(/^```(?:json|javascript|typescript)?\n?/gm, "")
+    .replace(/^```$/gm, "")
+    .trim();
+
+  // Try direct parse
   try {
-    return JSON.parse(raw) as T;
+    return JSON.parse(stripped) as T;
   } catch {
-    const match = raw.match(/\{[\s\S]*\}|\[[\s\S]*\]/);
-    if (!match) throw new Error("No JSON object found in model output");
-    return JSON.parse(match[0]) as T;
+    /* continue */
   }
+
+  // Extract the FIRST complete JSON object using a brace-counter approach
+  let depth = 0;
+  let start = -1;
+  let inString = false;
+  let escape = false;
+
+  for (let i = 0; i < stripped.length; i++) {
+    const ch = stripped[i];
+    if (escape) {
+      escape = false;
+      continue;
+    }
+    if (ch === "\\") {
+      escape = true;
+      continue;
+    }
+    if (ch === '"') {
+      inString = !inString;
+      continue;
+    }
+    if (inString) continue;
+    if (ch === "{" || ch === "[") {
+      if (depth === 0) start = i;
+      depth++;
+    } else if (ch === "}" || ch === "]") {
+      depth--;
+      if (depth === 0 && start !== -1) {
+        const candidate = stripped.slice(start, i + 1);
+        try {
+          return JSON.parse(candidate) as T;
+        } catch {
+          start = -1;
+        } // not valid JSON, keep scanning
+      }
+    }
+  }
+
+  throw new Error("No valid JSON object found in model output");
 }
 
 function buildModelPriority(
@@ -325,6 +369,10 @@ export async function POST(req: NextRequest) {
         { status: 400 },
       );
     }
+
+    // Create an AbortController tied to the request lifecycle
+    const abortController = new AbortController();
+    req.signal.addEventListener("abort", () => abortController.abort());
 
     // Plan guard — checks quota and model access
     const guardResult = await guardGenerationRequest(
@@ -570,9 +618,11 @@ export async function POST(req: NextRequest) {
                   designContext,
                 ),
                 temperature: 0.2,
+                abortSignal: abortController.signal,
               });
 
               for await (const token of textStream) {
+                if (abortController.signal.aborted) break;
                 finalCode += token;
                 await write({ type: "code_chunk", screen, token });
               }
@@ -587,6 +637,11 @@ export async function POST(req: NextRequest) {
                 `Stage 3 model failed for '${screen}': ${candidateModel}`,
                 err,
               );
+              if ((err as Error)?.name === "AbortError") {
+                // Client disconnected — clean exit, no error event needed
+                logger.info("Generation aborted due to client disconnect");
+                return;
+              }
             }
           }
 

@@ -45,6 +45,12 @@ export interface DesignContext {
   layout: LayoutHint;
   typography: TypographyHint;
   uxPriorities: string[];
+  biasCorrections: string[];
+  designDials: {
+    variance: number;
+    motion: number;
+    density: number;
+  };
 }
 
 export interface WebAppSpec {

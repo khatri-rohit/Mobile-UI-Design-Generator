@@ -14,6 +14,7 @@ import { initializeOllama } from "@/lib/ollama";
 import prisma from "@/lib/prisma";
 import { buildScreenPrompt, STAGE3_SYSTEM } from "@/lib/prompts";
 import { getGenerationBurstLimit } from "@/lib/ratelimit";
+import { buildDesignContext, toDesignContextText } from "@/lib/designContext";
 import {
   frameRegenerateRequestBodySchema,
   persistedGenerationScreenSchema,
@@ -435,6 +436,12 @@ export async function POST(
       screenName: sourceFrame.screenName,
     });
 
+    const designContext = await buildDesignContext({
+      prompt: sourceGeneration.prompt,
+      platform: sourcePlatform,
+    });
+    const designContextText = toDesignContextText(designContext);
+
     const sourceModel = STAGE3_MODELS.includes(sourceGeneration.model)
       ? sourceGeneration.model
       : null;
@@ -515,7 +522,7 @@ export async function POST(
                 spec,
                 tree,
                 sourceFrame.screenName,
-                regeneratePrompt,
+                `${regeneratePrompt}\n\n${designContextText}`,
               ),
               temperature: 0.2,
             });

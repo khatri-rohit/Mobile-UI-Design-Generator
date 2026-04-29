@@ -66,6 +66,15 @@ const FALLBACK_UX_PRIORITIES = [
   "Use one primary CTA per screen with clear semantic hierarchy.",
 ];
 
+const BIAS_CORRECTIONS = [
+  "NO EMOJIS: Replace symbols with high-quality icons (Radix, Phosphor) or clean SVG primitives.",
+  "NO AI PURPLE: Avoid the 'AI Purple/Blue' aesthetic. Use neutral bases (Zinc/Slate) with singular high-contrast accents.",
+  "NO INTER FONT: Avoid Inter for premium/creative vibes. Use Geist, Outfit, Cabinet Grotesk, or Satoshi.",
+  "NO GENERIC NAMES: Avoid 'John Doe' or 'Acme Corp'. Use realistic, contextual brand and user names.",
+  "NO 3-COLUMN CARDS: Avoid the generic 3-equal-card feature row. Use asymmetric grids or zig-zags.",
+  "NO PURE BLACK: Never use #000000. Use Off-Black, Zinc-950, or Charcoal.",
+];
+
 const SHORT_DESIGN_TOKENS = new Set(["ui", "ux", "ai", "3d", "ar", "vr"]);
 
 function parseCsv(content: string): CsvRow[] {
@@ -172,6 +181,36 @@ function inferProductType(prompt: string): string {
   if (/(admin|settings|management|panel)/.test(normalized)) return "admin";
 
   return "web-app";
+}
+
+function inferDesignDials(prompt: string): {
+  variance: number;
+  motion: number;
+  density: number;
+} {
+  const normalized = prompt.toLowerCase();
+  let variance = 8;
+  let motion = 6;
+  let density = 4;
+
+  if (/(minimal|clean|simple|airy|whitespace)/.test(normalized)) {
+    density = 2;
+    variance = 3;
+  }
+  if (/(complex|dense|packed|cockpit|data-heavy)/.test(normalized)) {
+    density = 9;
+  }
+  if (/(chaotic|artsy|experimental|asymmetric|bold)/.test(normalized)) {
+    variance = 10;
+  }
+  if (/(static|still|no animation)/.test(normalized)) {
+    motion = 1;
+  }
+  if (/(cinematic|dynamic|fluid|interactive|magic)/.test(normalized)) {
+    motion = 9;
+  }
+
+  return { variance, motion, density };
 }
 
 async function loadSkillsIndex(): Promise<SkillsIndex> {
@@ -331,8 +370,11 @@ export function toDesignContextText(context: DesignContext): string {
     `- Layout structure hint: ${context.layout.cssStructure}`,
     `- Layout treatment: ${context.layout.visualTreatment}`,
     `- Typography scale: ${context.typography.contentType} (primary ${context.typography.primarySize}, secondary ${context.typography.secondarySize}, accent ${context.typography.accentSize}, line-height ${context.typography.lineHeight})`,
+    `- Design Dials: Variance ${context.designDials.variance}, Motion ${context.designDials.motion}, Density ${context.designDials.density}`,
     "- UX priorities:",
     ...context.uxPriorities.map((priority) => `  - ${priority}`),
+    "- Bias Corrections (Strictly Enforced):",
+    ...context.biasCorrections.map((correction) => `  - ${correction}`),
   ].join("\n");
 }
 
@@ -343,6 +385,7 @@ export async function buildDesignContext(input: {
   const index = await loadSkillsIndex();
   const inputTokens = tokenize(input.prompt);
   const productType = inferProductType(input.prompt);
+  const designDials = inferDesignDials(input.prompt);
 
   const style = pickBest(
     index.styles,
@@ -413,5 +456,7 @@ export async function buildDesignContext(input: {
     layout,
     typography,
     uxPriorities: index.uxPriorities.slice(0, 5),
+    biasCorrections: BIAS_CORRECTIONS,
+    designDials,
   };
 }
