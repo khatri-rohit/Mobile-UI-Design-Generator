@@ -41,6 +41,12 @@
       "sourceType": "github",
       "computedHash": "f5baf3d41c689601e94dc73dd75349dbdde82f34f3f018f23a1ff47ed45c7d84"
     },
+    "security-review": {
+      "source": "getsentry/skills",
+      "sourceType": "github",
+      "skillPath": "skills/security-review/SKILL.md",
+      "computedHash": "1eee1e41aa0a0e75dbbe0cac387e3d61bedf51af1888f184301a173731e6973e"
+    },
     "shadcn": {
       "source": "shadcn/ui",
       "sourceType": "github",

@@ -35,18 +35,22 @@ import { incrementGenerationUsage } from "@/lib/usage";
 
 export const runtime = "nodejs";
 
-const STAGE1_MODELS = ["deepseek-v3.2:cloud", "gpt-oss:120b", "gemma4:31b"];
+const STAGE1_MODELS = [
+  "deepseek-v3.2:cloud",
+  //  "gpt-oss:120b",
+  "gemma4:31b",
+];
 const STAGE2_MODELS = [
   "deepseek-v3.2:cloud",
-  "gpt-oss:120b",
+  // "gpt-oss:120b",
   "deepseek-v3.1:671b",
-  "qwen3.5",
+  // "qwen3.5",
 ];
 const STAGE3_MODELS = [
   "gemma4:31b",
   "deepseek-v3.1:671b",
-  "qwen3.5",
-  "gpt-oss:120b",
+  // "qwen3.5",
+  // "gpt-oss:120b",
   "deepseek-v3.2:cloud",
 ];
 
