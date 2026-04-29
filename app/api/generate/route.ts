@@ -553,7 +553,7 @@ export async function POST(req: NextRequest) {
                 `Stage 3 screen '${screen}' via model: ${candidateModel}`,
               );
               const { usage: stage3Usage, textStream } = streamText({
-                model: ollama("kimi-k2-thinking:cloud"),
+                model: ollama("minimax-m2.7:cloud"),
                 system: STAGE3_SYSTEM,
                 prompt: buildScreenPrompt(
                   spec,
