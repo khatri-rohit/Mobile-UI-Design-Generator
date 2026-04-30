@@ -9,6 +9,7 @@ import { initializeOllama } from "@/lib/ollama";
 import { generateText, streamText } from "ai";
 import {
   buildScreenPrompt,
+  GENERATED_SCREEN_LIMITS,
   STAGE1_SYSTEM,
   STAGE2_SYSTEM,
   STAGE3_SYSTEM,
@@ -31,7 +32,6 @@ import {
 import { PersistedGenerationScreen } from "@/lib/canvas-state";
 import { z } from "zod";
 import { guardGenerationRequest } from "@/lib/plan-guard";
-import { incrementGenerationUsage } from "@/lib/usage";
 import { sanitizeGeneratedCode } from "@/lib/generatedCodeSanitizer";
 
 export const runtime = "nodejs";
@@ -50,8 +50,8 @@ const STAGE2_MODELS = [
 const STAGE3_MODELS = [
   "gemma4:31b",
   "deepseek-v3.1:671b",
-  // "qwen3.5",
-  // "gpt-oss:120b",
+  "qwen3.5",
+  "gpt-oss:120b",
   "deepseek-v3.2:cloud",
 ];
 
@@ -119,7 +119,10 @@ function splitMobileScreensIfNeeded(
 
   if (complexityScore < 2) return spec;
 
-  const parts = complexityScore >= 4 ? 3 : 2;
+  const parts = Math.min(
+    complexityScore >= 5 || prompt.length >= 360 ? 3 : 2,
+    GENERATED_SCREEN_LIMITS.mobile,
+  );
   const baseName = spec.screens[0]?.trim() || "Mobile Screen";
 
   return {
@@ -138,9 +141,10 @@ function coerceSpec(
           (item): item is string => typeof item === "string" && !!item.trim(),
         )
       : [platform === "mobile" ? "Mobile Screen" : "Landing Page"];
+  const maxScreens = GENERATED_SCREEN_LIMITS[platform];
 
   return {
-    screens,
+    screens: screens.slice(0, maxScreens),
     navPattern:
       raw.navPattern === "top-nav" ||
       raw.navPattern === "sidebar" ||
@@ -374,15 +378,6 @@ export async function POST(req: NextRequest) {
     const abortController = new AbortController();
     req.signal.addEventListener("abort", () => abortController.abort());
 
-    // Plan guard — checks quota and model access
-    const guardResult = await guardGenerationRequest(
-      authContext,
-      (rawBody as Record<string, unknown> | null)?.model as string | undefined,
-    );
-    if (!guardResult.allowed) return guardResult.response;
-    const { usage } = guardResult;
-    logger.info("Plan guard passed for generation request", { usage });
-
     const parsedBody = generationBodySchema.safeParse(rawBody);
     if (!parsedBody.success) {
       return NextResponse.json(
@@ -454,6 +449,14 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const guardResult = await guardGenerationRequest(
+      authContext,
+      preferredModel ?? undefined,
+    );
+    if (!guardResult.allowed) return guardResult.response;
+    const { usage } = guardResult;
+    logger.info("Plan guard passed for generation request", { usage });
+
     const requestedPlatform = normalizePlatform(body.platform);
     const prompt = body.prompt.trim();
 
@@ -461,7 +464,7 @@ export async function POST(req: NextRequest) {
       prompt,
       platform: requestedPlatform,
     });
-    const enhancedPrompt = buildEnhancedPrompt({
+    const stage3Prompt = buildEnhancedPrompt({
       prompt,
       platform: requestedPlatform,
       designContext,
@@ -503,13 +506,13 @@ export async function POST(req: NextRequest) {
             models: stage1ModelPriority,
             ollama,
             system: STAGE1_SYSTEM,
-            prompt: `User prompt: ${enhancedPrompt}\nPlatform: ${requestedPlatform}\n${designContextText}`,
+            prompt: `User prompt: ${prompt}\nPlatform: ${requestedPlatform}\n${designContextText}`,
           });
 
         const rawParsedSpec = parseJsonStrict<Partial<WebAppSpec>>(rawSpec);
         const spec = splitMobileScreensIfNeeded(
           coerceSpec(rawParsedSpec, requestedPlatform),
-          enhancedPrompt,
+          prompt,
         );
         logger.info("Stage 1 Spec Extraction complete", { usage: stage1Usage });
         const requestedModelForPersistence =
@@ -519,7 +522,7 @@ export async function POST(req: NextRequest) {
           const generation = await tx.generation.create({
             data: {
               projectId: project.id,
-              prompt: enhancedPrompt,
+              prompt,
               model: requestedModelForPersistence,
               platform: toPrismaPlatform(requestedPlatform),
               spec: spec as any,
@@ -539,14 +542,9 @@ export async function POST(req: NextRequest) {
 
         generationId = createdGeneration.id;
 
-        // Increment on confirmed start — prevents concurrent request race conditions
-        if (persistedScreens.length === 0) {
-          await prisma.$executeRaw`
-    UPDATE "UsagePeriod"
-    SET "generationsUsed" = GREATEST("generationsUsed" - 1, 0), "updatedAt" = NOW()
-    WHERE "id" = ${usage.usagePeriodId}
-  `;
-        }
+        logger.info("Generation usage slot reserved", {
+          usagePeriodId: usage.usagePeriodId,
+        });
 
         await write({ type: "generation_id", generationId });
         await write({ type: "design_context", designContext });
@@ -614,7 +612,7 @@ export async function POST(req: NextRequest) {
                   spec,
                   tree,
                   screen,
-                  enhancedPrompt,
+                  stage3Prompt,
                   designContext,
                 ),
                 temperature: 0.2,

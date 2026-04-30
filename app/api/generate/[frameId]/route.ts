@@ -14,7 +14,7 @@ import { initializeOllama } from "@/lib/ollama";
 import prisma from "@/lib/prisma";
 import { buildScreenPrompt, STAGE3_SYSTEM } from "@/lib/prompts";
 import { getGenerationBurstLimit } from "@/lib/ratelimit";
-import { buildDesignContext, toDesignContextText } from "@/lib/designContext";
+import { buildDesignContext } from "@/lib/designContext";
 import {
   frameRegenerateRequestBodySchema,
   persistedGenerationScreenSchema,
@@ -24,6 +24,7 @@ import {
 import { ComponentTreeNode, GenerationPlatform, WebAppSpec } from "@/lib/types";
 import { guardFrameRegeneration } from "@/lib/plan-guard";
 import { incrementFrameRegenUsage } from "@/lib/usage";
+import { sanitizeGeneratedCode } from "@/lib/generatedCodeSanitizer";
 
 export const runtime = "nodejs";
 
@@ -406,8 +407,8 @@ export async function POST(
             z.object({
               screen: z.string(),
               components: z.array(z.string()),
-              canvasX: z.number(),
-              canvasY: z.number(),
+              canvasX: z.number().optional(),
+              canvasY: z.number().optional(),
               layoutArchitecture: z.record(z.string(), z.unknown()).optional(),
               componentIntents: z.array(z.unknown()).optional(),
             }),
@@ -440,8 +441,6 @@ export async function POST(
       prompt: sourceGeneration.prompt,
       platform: sourcePlatform,
     });
-    const designContextText = toDesignContextText(designContext);
-
     const sourceModel = STAGE3_MODELS.includes(sourceGeneration.model)
       ? sourceGeneration.model
       : null;
@@ -516,13 +515,14 @@ export async function POST(
             );
 
             const result = streamText({
-              model: ollama(candidateModel),
+              model: ollama("minimax-m2.7:cloud"),
               system: STAGE3_SYSTEM,
               prompt: buildScreenPrompt(
                 spec,
                 tree,
                 sourceFrame.screenName,
-                `${regeneratePrompt}\n\n${designContextText}`,
+                regeneratePrompt,
+                designContext,
               ),
               temperature: 0.2,
             });
@@ -560,7 +560,7 @@ export async function POST(
         const updatedFrame: PersistedGenerationScreen = {
           ...sourceFrame,
           state: "done",
-          content: generatedCode,
+          content: sanitizeGeneratedCode(generatedCode),
           editedContent: null,
           error: null,
         };
@@ -606,7 +606,9 @@ export async function POST(
           const failedFrame: PersistedGenerationScreen = {
             ...sourceFrame,
             state: "error",
-            content: generatedCode.trim() ? generatedCode : sourceFrame.content,
+            content: generatedCode.trim()
+              ? sanitizeGeneratedCode(generatedCode)
+              : sourceFrame.content,
             editedContent: null,
             error: message,
           };
