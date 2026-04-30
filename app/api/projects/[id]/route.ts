@@ -30,6 +30,7 @@ import {
   webAppSpecSchema,
 } from "@/lib/schemas/studio";
 import { GenerationPlatform } from "@/lib/types";
+import { revalidateTag } from "next/cache";
 import { NextResponse, NextRequest } from "next/server";
 import { z } from "zod";
 
@@ -248,6 +249,7 @@ export async function GET(
     const data: ProjectDetail = {
       id: project.id,
       title: project.title ?? "Untitled Project",
+      description: project.description ?? null,
       status: project.status as ProjectStatus,
       initialPrompt: project.initialPrompt,
       canvasState: normalizedCanvasState,
@@ -351,13 +353,15 @@ export async function PATCH(
       );
     }
 
-    const { status, canvasState, generationId } = parsedBody.data;
+    const { title, description, status, canvasState, generationId } =
+      parsedBody.data;
 
     const project = await prisma.project.findUnique({
       where: { id, userId: authContext.appUserId },
       select: {
         id: true,
         title: true,
+        description: true,
         initialPrompt: true,
         status: true,
         canvasState: true,
@@ -463,6 +467,14 @@ export async function PATCH(
           updateData.status = status;
         }
 
+        if (title !== undefined) {
+          updateData.title = title;
+        }
+
+        if (description !== undefined) {
+          updateData.description = description;
+        }
+
         if (canvasStateForProject !== undefined) {
           updateData.canvasState =
             canvasStateForProject === null
@@ -476,6 +488,7 @@ export async function PATCH(
           select: {
             id: true,
             title: true,
+            description: true,
             initialPrompt: true,
             status: true,
             canvasState: true,
@@ -493,6 +506,7 @@ export async function PATCH(
       project: {
         id: updatedProject.id,
         title: updatedProject.title ?? "Untitled Project",
+        description: updatedProject.description ?? null,
         initialPrompt: updatedProject.initialPrompt,
         status: updatedProject.status as ProjectStatus,
         canvasState: normalizeCanvasMetadata(updatedProject.canvasState),
@@ -606,6 +620,7 @@ export async function DELETE(
         { status: 404 },
       );
     }
+    revalidateTag("projects:list", { expire: 0 });
 
     return NextResponse.json(
       {

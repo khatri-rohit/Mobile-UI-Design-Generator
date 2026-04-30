@@ -9,6 +9,7 @@ import { initializeOllama } from "@/lib/ollama";
 import { generateText, streamText } from "ai";
 import {
   buildScreenPrompt,
+  GENERATED_SCREEN_LIMITS,
   STAGE1_SYSTEM,
   STAGE2_SYSTEM,
   STAGE3_SYSTEM,
@@ -31,7 +32,7 @@ import {
 import { PersistedGenerationScreen } from "@/lib/canvas-state";
 import { z } from "zod";
 import { guardGenerationRequest } from "@/lib/plan-guard";
-import { incrementGenerationUsage } from "@/lib/usage";
+import { sanitizeGeneratedCode } from "@/lib/generatedCodeSanitizer";
 
 export const runtime = "nodejs";
 
@@ -49,8 +50,8 @@ const STAGE2_MODELS = [
 const STAGE3_MODELS = [
   "gemma4:31b",
   "deepseek-v3.1:671b",
-  // "qwen3.5",
-  // "gpt-oss:120b",
+  "qwen3.5",
+  "gpt-oss:120b",
   "deepseek-v3.2:cloud",
 ];
 
@@ -118,7 +119,10 @@ function splitMobileScreensIfNeeded(
 
   if (complexityScore < 2) return spec;
 
-  const parts = complexityScore >= 4 ? 3 : 2;
+  const parts = Math.min(
+    complexityScore >= 5 || prompt.length >= 360 ? 3 : 2,
+    GENERATED_SCREEN_LIMITS.mobile,
+  );
   const baseName = spec.screens[0]?.trim() || "Mobile Screen";
 
   return {
@@ -137,9 +141,10 @@ function coerceSpec(
           (item): item is string => typeof item === "string" && !!item.trim(),
         )
       : [platform === "mobile" ? "Mobile Screen" : "Landing Page"];
+  const maxScreens = GENERATED_SCREEN_LIMITS[platform];
 
   return {
-    screens,
+    screens: screens.slice(0, maxScreens),
     navPattern:
       raw.navPattern === "top-nav" ||
       raw.navPattern === "sidebar" ||
@@ -193,13 +198,57 @@ function coerceSpec(
 }
 
 function parseJsonStrict<T>(raw: string): T {
+  // Strip markdown code fences first
+  const stripped = raw
+    .replace(/^```(?:json|javascript|typescript)?\n?/gm, "")
+    .replace(/^```$/gm, "")
+    .trim();
+
+  // Try direct parse
   try {
-    return JSON.parse(raw) as T;
+    return JSON.parse(stripped) as T;
   } catch {
-    const match = raw.match(/\{[\s\S]*\}|\[[\s\S]*\]/);
-    if (!match) throw new Error("No JSON object found in model output");
-    return JSON.parse(match[0]) as T;
+    /* continue */
   }
+
+  // Extract the FIRST complete JSON object using a brace-counter approach
+  let depth = 0;
+  let start = -1;
+  let inString = false;
+  let escape = false;
+
+  for (let i = 0; i < stripped.length; i++) {
+    const ch = stripped[i];
+    if (escape) {
+      escape = false;
+      continue;
+    }
+    if (ch === "\\") {
+      escape = true;
+      continue;
+    }
+    if (ch === '"') {
+      inString = !inString;
+      continue;
+    }
+    if (inString) continue;
+    if (ch === "{" || ch === "[") {
+      if (depth === 0) start = i;
+      depth++;
+    } else if (ch === "}" || ch === "]") {
+      depth--;
+      if (depth === 0 && start !== -1) {
+        const candidate = stripped.slice(start, i + 1);
+        try {
+          return JSON.parse(candidate) as T;
+        } catch {
+          start = -1;
+        } // not valid JSON, keep scanning
+      }
+    }
+  }
+
+  throw new Error("No valid JSON object found in model output");
 }
 
 function buildModelPriority(
@@ -325,14 +374,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Plan guard — checks quota and model access
-    const guardResult = await guardGenerationRequest(
-      authContext,
-      (rawBody as Record<string, unknown> | null)?.model as string | undefined,
-    );
-    if (!guardResult.allowed) return guardResult.response;
-    const { usage } = guardResult;
-    logger.info("Plan guard passed for generation request", { usage });
+    // Create an AbortController tied to the request lifecycle
+    const abortController = new AbortController();
+    req.signal.addEventListener("abort", () => abortController.abort());
 
     const parsedBody = generationBodySchema.safeParse(rawBody);
     if (!parsedBody.success) {
@@ -405,6 +449,14 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const guardResult = await guardGenerationRequest(
+      authContext,
+      preferredModel ?? undefined,
+    );
+    if (!guardResult.allowed) return guardResult.response;
+    const { usage } = guardResult;
+    logger.info("Plan guard passed for generation request", { usage });
+
     const requestedPlatform = normalizePlatform(body.platform);
     const prompt = body.prompt.trim();
 
@@ -412,7 +464,7 @@ export async function POST(req: NextRequest) {
       prompt,
       platform: requestedPlatform,
     });
-    const enhancedPrompt = buildEnhancedPrompt({
+    const stage3Prompt = buildEnhancedPrompt({
       prompt,
       platform: requestedPlatform,
       designContext,
@@ -454,13 +506,13 @@ export async function POST(req: NextRequest) {
             models: stage1ModelPriority,
             ollama,
             system: STAGE1_SYSTEM,
-            prompt: `User prompt: ${enhancedPrompt}\nPlatform: ${requestedPlatform}\n${designContextText}`,
+            prompt: `User prompt: ${prompt}\nPlatform: ${requestedPlatform}\n${designContextText}`,
           });
 
         const rawParsedSpec = parseJsonStrict<Partial<WebAppSpec>>(rawSpec);
         const spec = splitMobileScreensIfNeeded(
           coerceSpec(rawParsedSpec, requestedPlatform),
-          enhancedPrompt,
+          prompt,
         );
         logger.info("Stage 1 Spec Extraction complete", { usage: stage1Usage });
         const requestedModelForPersistence =
@@ -470,7 +522,7 @@ export async function POST(req: NextRequest) {
           const generation = await tx.generation.create({
             data: {
               projectId: project.id,
-              prompt: enhancedPrompt,
+              prompt,
               model: requestedModelForPersistence,
               platform: toPrismaPlatform(requestedPlatform),
               spec: spec as any,
@@ -490,8 +542,9 @@ export async function POST(req: NextRequest) {
 
         generationId = createdGeneration.id;
 
-        // Increment on confirmed start — prevents concurrent request race conditions
-        await incrementGenerationUsage(usage.usagePeriodId);
+        logger.info("Generation usage slot reserved", {
+          usagePeriodId: usage.usagePeriodId,
+        });
 
         await write({ type: "generation_id", generationId });
         await write({ type: "design_context", designContext });
@@ -559,13 +612,15 @@ export async function POST(req: NextRequest) {
                   spec,
                   tree,
                   screen,
-                  enhancedPrompt,
+                  stage3Prompt,
                   designContext,
                 ),
                 temperature: 0.2,
+                abortSignal: abortController.signal,
               });
 
               for await (const token of textStream) {
+                if (abortController.signal.aborted) break;
                 finalCode += token;
                 await write({ type: "code_chunk", screen, token });
               }
@@ -580,6 +635,11 @@ export async function POST(req: NextRequest) {
                 `Stage 3 model failed for '${screen}': ${candidateModel}`,
                 err,
               );
+              if ((err as Error)?.name === "AbortError") {
+                // Client disconnected — clean exit, no error event needed
+                logger.info("Generation aborted due to client disconnect");
+                return;
+              }
             }
           }
 
@@ -592,7 +652,7 @@ export async function POST(req: NextRequest) {
               w: dimensions.w,
               h: dimensions.h,
               screenName: screen,
-              content: finalCode,
+              content: sanitizeGeneratedCode(finalCode),
               editedContent: null,
               error: `All stage 3 models failed: ${String(streamErr)}`,
             });
@@ -611,7 +671,7 @@ export async function POST(req: NextRequest) {
             w: dimensions.w,
             h: dimensions.h,
             screenName: screen,
-            content: finalCode,
+            content: sanitizeGeneratedCode(finalCode),
             editedContent: null,
             error: finalCode.trim()
               ? null

@@ -17,7 +17,7 @@ const SelectModel = ({ list, setModel, model }: SelectModelProps) => {
   return (
     <Select onValueChange={(value) => setModel(value)} value={model}>
       <SelectTrigger className="w-45">
-        <SelectValue placeholder="minimax-m2.7:cloud" />
+        <SelectValue placeholder="gemma4:31b" />
       </SelectTrigger>
       <SelectContent>
         <SelectGroup>

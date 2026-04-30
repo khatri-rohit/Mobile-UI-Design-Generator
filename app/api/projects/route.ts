@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Client } from "@upstash/qstash";
+import { revalidateTag } from "next/cache";
 
 import prisma from "@/lib/prisma";
 import { isAuthError, requireAuthContext } from "@/lib/get-auth";
@@ -11,7 +12,6 @@ import {
 
 import logger from "@/lib/logger";
 import { guardProjectCreation } from "@/lib/plan-guard";
-import { incrementProjectUsage } from "@/lib/usage";
 
 const client = new Client({
   token: process.env.QSTASH_TOKEN,
@@ -75,9 +75,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const guardResult = await guardProjectCreation(authContext);
-    if (!guardResult.allowed) return guardResult.response;
-
     let rawBody: unknown;
 
     try {
@@ -105,6 +102,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const guardResult = await guardProjectCreation(authContext);
+    if (!guardResult.allowed) return guardResult.response;
+
     const { prompt } = parsedBody.data;
 
     const newProject = await prisma.project.create({
@@ -117,7 +117,7 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    await incrementProjectUsage(guardResult.usage.usagePeriodId);
+    revalidateTag("projects:list", { expire: 0 });
 
     try {
       const queueBaseUrl = process.env.BACKGROUND_TASK_QUEUE_PUBLIC_URL;

@@ -1,7 +1,12 @@
 import { NextResponse } from "next/server";
 import { AppAuthContext } from "@/lib/get-auth";
 import { getPlanConfig, isModelAllowed } from "@/lib/plans";
-import { getOrCreateUsagePeriod, UsageContext } from "@/lib/usage";
+import {
+  getOrCreateUsagePeriod,
+  reserveProjectSlot,
+  reserveGenerationSlot,
+  UsageContext,
+} from "@/lib/usage";
 import {
   createOrganisation,
   hasAvailableSeat,
@@ -56,17 +61,6 @@ export async function guardGenerationRequest(
     };
   }
 
-  if (usage.generationsRemaining === 0) {
-    return {
-      allowed: false,
-      response: quotaExceededResponse(
-        usage.generationsUsed,
-        usage.generationLimit,
-        authContext.effectivePlanId,
-      ),
-    };
-  }
-
   if (
     requestedModel &&
     !isModelAllowed(authContext.effectivePlanId, requestedModel)
@@ -86,6 +80,22 @@ export async function guardGenerationRequest(
           },
         },
         { status: 403 },
+      ),
+    };
+  }
+
+  const slotReserved = await reserveGenerationSlot(
+    usage.usagePeriodId,
+    usage.generationLimit,
+  );
+
+  if (!slotReserved) {
+    return {
+      allowed: false,
+      response: quotaExceededResponse(
+        usage.generationsUsed,
+        usage.generationLimit,
+        authContext.effectivePlanId,
       ),
     };
   }
@@ -110,7 +120,12 @@ export async function guardProjectCreation(
     };
   }
 
-  if (usage.projectsRemaining === 0) {
+  const slotReserved = await reserveProjectSlot(
+    usage.usagePeriodId,
+    usage.projectLimit,
+  );
+
+  if (!slotReserved) {
     return {
       allowed: false,
       response: NextResponse.json(
