@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-AI-powered UI design tool with an infinite canvas. Users describe UIs in natural language, and a multi-stage AI pipeline generates live Sandpack-rendered React components. Built on Next.js 16 (App Router) + React 19, tldraw canvas, Ollama local inference, Prisma ORM v7 + Supabase, Clerk auth, and Razorpay billing.
+AI-powered UI design tool with an infinite canvas. Users describe UIs in natural language, and a multi-stage AI pipeline generates live Sandpack-rendered React components. Built on Next.js 16 (App Router) + React 19, custom canvas, Ollama local inference, Prisma ORM v7 + Supabase, Clerk auth, and Razorpay billing.
 
 ## Common Commands
 
@@ -43,7 +43,7 @@ Key pipeline files:
 
 ### Infinite Canvas & Live Preview
 
-- **Canvas**: tldraw powers the Figma-like infinite canvas (`components/canvas/InfiniteCanvas.tsx`).
+- **Canvas**: Custom built powers the Figma-like infinite canvas (`components/canvas/InfiniteCanvas.tsx`).
 - **Frames**: Phone-framed artboards (`components/canvas/CanvasFrame.tsx`) are draggable, resizable, and selectable.
 - **Live Compilation**: CodeSandbox Sandpack Client renders generated TSX directly in the browser.
 - **State**: Canvas state is managed via a Zustand store (`stores/project-studio.ts`). Server state (projects, generations) uses TanStack Query.
@@ -123,7 +123,7 @@ This repository uses a skill-first execution model defined in `.github/copilot-i
 | `app/api/webhooks/`                     | Clerk and Razorpay webhook handlers                           |
 | `app/generated/prisma/`                 | Generated Prisma client and model types                       |
 | `components/ui/`                        | shadcn/ui components                                          |
-| `components/canvas/`                    | tldraw canvas, frames, toolbar, error boundaries              |
+| `components/canvas/`                    | custom canvas, frames, toolbar, error boundaries              |
 | `components/projects/`                  | Project studio UI, feedback form                              |
 | `components/auth/`                      | Clerk custom auth flows                                       |
 | `lib/`                                  | Core utilities, AI prompts, design context, billing logic     |

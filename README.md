@@ -11,7 +11,7 @@ Our goal is to dramatically reduce the time from conception to functioning proto
 This project is built using modern web standards to ensure scalability, robust performance, and rapid iterations.
 
 - **Framework**: Next.js 16 (App Router) & React 19
-- **Infinite Canvas**: [tldraw](https://tldraw.dev) (Enabling a Figma-like workspace)
+- **Infinite Canvas**: Custom
 - **Live Code Compilation**: CodeSandbox Sandpack Client & Web Workers
 - **AI Backend**: Vercel AI SDK (`ai`) paired with local inference (`ollama-ai-provider-v2`)
 - **Styling & UI**: Tailwind CSS v4, Radix UI, and Shadcn components
@@ -23,7 +23,7 @@ The platform is currently in its Phase 1 MVP status, focusing on the core genera
 
 - **Prompt-Driven Generation**: Input natural language prompts to automatically generate UI screens.
 - **Multiple Screen Generation**: Build and output several views simultaneously.
-- **Infinite Canvas Workspace**: A fully interactive canvas (powered by tldraw) natively supporting zooming and panning.
+- **Infinite Canvas Workspace**: A fully interactive canvas (build custom) natively supporting zooming and panning.
 - **Drag & Drop Artboards**: Phone-framed artboards that can be manipulated freely across the workspace.
 - **Side-by-Step Layout**: Live orchestration of screens positioned organically for UX flow mapping.
 - **Immediate Live Previews**: Rendered using an in-browser compilation step (via Sandpack).

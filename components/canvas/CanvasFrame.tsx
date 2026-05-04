@@ -386,7 +386,7 @@ export const CanvasFrame = memo(function CanvasFrame({
 
             {(state === "skeleton" || state === "streaming") && (
               <div
-                className="absolute inset-0 flex items-center justify-center bg-[var(--frame-skeleton-bg)]"
+                className="absolute inset-0 flex items-center justify-center bg-(--frame-skeleton-bg)"
                 style={{ top: chromeTopHeight, height: iframeHeight }}
               >
                 {state === "skeleton" ? <SkeletonView /> : <StreamingView />}
@@ -428,7 +428,7 @@ export const CanvasFrame = memo(function CanvasFrame({
 
             {state === "error" && (
               <div
-                className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-[var(--frame-error-bg)]"
+                className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-(--frame-error-bg)"
                 style={{ top: chromeTopHeight, height: iframeHeight }}
               >
                 <div className="flex h-10 w-10 items-center justify-center rounded-full bg-foreground/5">
@@ -453,14 +453,15 @@ export const CanvasFrame = memo(function CanvasFrame({
                     This frame didn&apos;t compile
                   </span>
                   <p className="mt-2 font-mono text-[10px] leading-relaxed text-foreground/35">
-                    Right-click this frame and select &quot;Regenerate&quot; to try again.
+                    Right-click this frame and select &quot;Regenerate&quot; to
+                    try again.
                   </p>
                 </div>
               </div>
             )}
 
             {platform === "mobile" && (
-              <div className="absolute inset-x-0 bottom-0 z-10 flex h-8.5 items-center justify-center bg-[var(--status-bar-bg)]">
+              <div className="absolute inset-x-0 bottom-0 z-10 flex h-8.5 items-center justify-center bg-(--status-bar-bg)">
                 <div className="h-1.5 w-16 rounded-full bg-foreground/40" />
               </div>
             )}
@@ -563,7 +564,9 @@ function StreamingView() {
           />
         ))}
       </div>
-      <span className="font-mono text-[10px] text-foreground/40">Generating...</span>
+      <span className="font-mono text-[10px] text-foreground/40">
+        Generating...
+      </span>
     </div>
   );
 }
@@ -588,14 +591,16 @@ function MobileStatusBar() {
   const iconFill = isDark ? "white" : "#171717";
 
   return (
-    <div className="absolute inset-x-0 top-0 z-10 flex h-11 items-end justify-between bg-[var(--status-bar-bg)] px-5 pb-2">
-      <span className="text-[13px] font-semibold text-[var(--status-bar-text)]">9:41</span>
+    <div className="absolute inset-x-0 top-0 z-10 flex h-11 items-end justify-between bg-(--status-bar-bg) px-5 pb-2">
+      <span className="text-[13px] font-semibold text-(--status-bar-text)">
+        9:41
+      </span>
       <div className="flex items-center gap-1.5">
         <div className="flex items-end gap-0.5">
           {[3, 5, 7, 9, 11].map((height, index) => (
             <div
               key={index}
-              className="w-0.75 rounded-[1px] bg-[var(--status-bar-text)]"
+              className="w-0.75 rounded-[1px] bg-(--status-bar-text)"
               style={{ height }}
             />
           ))}
@@ -611,12 +616,16 @@ function MobileStatusBar() {
         </svg>
         <div
           className="relative flex h-3 w-5.5 items-center overflow-hidden rounded-xs border px-0.5"
-          style={{ borderColor: `color-mix(in oklab, ${iconFill} 70%, transparent)` }}
+          style={{
+            borderColor: `color-mix(in oklab, ${iconFill} 70%, transparent)`,
+          }}
         >
-          <div className="h-2 w-3.5 rounded-[1px] bg-[var(--status-bar-text)]" />
+          <div className="h-2 w-3.5 rounded-[1px] bg-(--status-bar-text)" />
           <div
             className="absolute -right-0.75 top-1/2 h-1.5 w-0.5 -translate-y-1/2 rounded-r"
-            style={{ backgroundColor: `color-mix(in oklab, ${iconFill} 50%, transparent)` }}
+            style={{
+              backgroundColor: `color-mix(in oklab, ${iconFill} 50%, transparent)`,
+            }}
           />
         </div>
       </div>
