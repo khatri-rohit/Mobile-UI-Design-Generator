@@ -102,9 +102,7 @@ export function useSpeechRecognition(
   const stoppedByUserRef = useRef(false);
   const shouldListenRef = useRef(false);
 
-  const [isSupported] = useState(() =>
-    Boolean(getSpeechRecognitionConstructor()),
-  );
+  const [isSupported, setIsSupported] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [transcript, setTranscript] = useState("");
   const [interimTranscript, setInterimTranscript] = useState("");
@@ -112,6 +110,7 @@ export function useSpeechRecognition(
 
   useEffect(() => {
     const SpeechRecognition = getSpeechRecognitionConstructor();
+    setIsSupported(Boolean(SpeechRecognition));
 
     if (!SpeechRecognition) {
       return;

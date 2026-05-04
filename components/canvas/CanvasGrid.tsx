@@ -16,9 +16,9 @@ export function CanvasGrid({ transform }: CanvasGridProps) {
     <div
       className="pointer-events-none absolute inset-0"
       style={{
-        backgroundColor: "#111111",
+        backgroundColor: "var(--canvas-background)",
         backgroundImage:
-          "radial-gradient(circle at 1px 1px, rgba(255,255,255,0.16) 1px, transparent 1px)",
+          "radial-gradient(circle at 1px 1px, var(--canvas-dot) 1px, transparent 1px)",
         backgroundSize: `${spacing}px ${spacing}px`,
         backgroundPosition: `${normalizedX}px ${normalizedY}px`,
         zIndex: 0,

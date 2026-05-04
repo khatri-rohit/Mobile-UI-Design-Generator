@@ -1,3 +1,5 @@
+/* eslint-disable react-hooks/exhaustive-deps */
+/* eslint-disable @typescript-eslint/no-unused-vars */
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -9,6 +11,7 @@ import {
   InfiniteCanvas,
   InfiniteCanvasHandle,
 } from "@/components/canvas/InfiniteCanvas";
+import { StudioThemeProvider } from "@/components/canvas/StudioThemeContext";
 import {
   Transform,
   FrameRect,
@@ -301,6 +304,33 @@ const ProjectStudioClient = ({ projectId }: ProjectStudioClientProps) => {
     useProjectMetadataUpdateMutation();
 
   const platform = project?.platform ?? "web";
+
+  type ThemeMode = "light" | "dark" | "system";
+  const [themeMode, setThemeMode] = useState<ThemeMode>(() => {
+    if (typeof window === "undefined") return "dark";
+    return (
+      (localStorage.getItem("project-studio-theme") as ThemeMode) || "dark"
+    );
+  });
+  const [systemDark, setSystemDark] = useState(() =>
+    typeof window !== "undefined"
+      ? window.matchMedia("(prefers-color-scheme: dark)").matches
+      : false,
+  );
+
+  useEffect(() => {
+    const mq = window.matchMedia("(prefers-color-scheme: dark)");
+    const handler = (e: MediaQueryListEvent) => setSystemDark(e.matches);
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
+  }, []);
+
+  const isDark = themeMode === "dark" || (themeMode === "system" && systemDark);
+
+  const handleThemeChange = useCallback((next: ThemeMode) => {
+    setThemeMode(next);
+    localStorage.setItem("project-studio-theme", next);
+  }, []);
 
   const projectStudioStoreApi = useProjectStudioStoreApi();
 
@@ -745,40 +775,37 @@ const ProjectStudioClient = ({ projectId }: ProjectStudioClientProps) => {
       dirtyScreens: new Set(),
     }));
 
-    applyFrames(
-      (current) => {
-        let changed = false;
-        const next = new Map(current);
+    applyFrames((current) => {
+      let changed = false;
+      const next = new Map(current);
 
-        for (const screenName of dirtyScreens) {
-          const frameId = resolveFrameIdForScreenFromState({
-            screenName,
-            frames: next,
-            activeFrameIds: activeFrameIdsSnapshot,
-            frameIdsByScreen: frameIdsSnapshot,
-          });
-          if (!frameId) continue;
+      for (const screenName of dirtyScreens) {
+        const frameId = resolveFrameIdForScreenFromState({
+          screenName,
+          frames: next,
+          activeFrameIds: activeFrameIdsSnapshot,
+          frameIdsByScreen: frameIdsSnapshot,
+        });
+        if (!frameId) continue;
 
-          const frame = next.get(frameId);
-          if (!frame) continue;
+        const frame = next.get(frameId);
+        if (!frame) continue;
 
-          const bufferedContent = buffersSnapshot.get(screenName) ?? "";
-          if (bufferedContent === frame.content && frame.state === "streaming") {
-            continue;
-          }
-
-          changed = true;
-          next.set(frameId, {
-            ...frame,
-            content: bufferedContent,
-            state: "streaming",
-          });
+        const bufferedContent = buffersSnapshot.get(screenName) ?? "";
+        if (bufferedContent === frame.content && frame.state === "streaming") {
+          continue;
         }
 
-        return changed ? next : current;
-      },
-      true,
-    );
+        changed = true;
+        next.set(frameId, {
+          ...frame,
+          content: bufferedContent,
+          state: "streaming",
+        });
+      }
+
+      return changed ? next : current;
+    }, true);
   }, [applyFrames, getStudioRuntime, updateStudioRuntime]);
 
   const startChunkFlusher = useCallback(() => {
@@ -2642,27 +2669,49 @@ npm run dev
     );
   }
 
-  return (
-    <div
-      className={cn(
-        "dark relative h-screen w-full overflow-hidden bg-background text-foreground",
-        "selection:bg-primary selection:text-primary-foreground",
+  const themeVariables = isDark
+    ? [
         "[--radius:2px] [--background:#111111] [--foreground:#e2e2e2]",
         "[--card:#1a1a1a] [--card-foreground:#e2e2e2] [--popover:#1a1a1a] [--popover-foreground:#f9f9f9]",
         "[--primary:#ffffff] [--primary-foreground:#000000] [--secondary:#1a1a1a] [--secondary-foreground:#f1f1f1]",
         "[--muted:#1a1a1a] [--muted-foreground:#777777] [--accent:#222222] [--accent-foreground:#f9f9f9]",
         "[--destructive:#ba1a1a] [--border:#222222] [--input:#333333] [--ring:#777777]",
+        "[--canvas-background:#111111] [--canvas-dot:rgba(255,255,255,0.16)]",
+        "[--frame-error-bg:#0f0f0f] [--frame-skeleton-bg:#1a1a1a]",
+        "[--frame-border-default:rgba(255,255,255,0.10)] [--frame-border-selected:rgba(255,255,255,0.28)]",
+        "[--frame-shadow:rgba(0,0,0,0.55)] [--status-bar-bg:black] [--status-bar-text:white]",
+      ]
+    : [
+        "[--radius:2px] [--background:#fafafa] [--foreground:#171717]",
+        "[--card:#ffffff] [--card-foreground:#171717] [--popover:#ffffff] [--popover-foreground:#171717]",
+        "[--primary:#171717] [--primary-foreground:#fafafa] [--secondary:#f5f5f5] [--secondary-foreground:#171717]",
+        "[--muted:#f5f5f5] [--muted-foreground:#737373] [--accent:#f5f5f5] [--accent-foreground:#171717]",
+        "[--destructive:#ef4444] [--border:#e5e5e5] [--input:#e5e5e5] [--ring:#a3a3a3]",
+        "[--canvas-background:#f5f5f5] [--canvas-dot:rgba(0,0,0,0.10)]",
+        "[--frame-error-bg:#fafafa] [--frame-skeleton-bg:#f0f0f0]",
+        "[--frame-border-default:rgba(0,0,0,0.10)] [--frame-border-selected:rgba(0,0,0,0.28)]",
+        "[--frame-shadow:rgba(0,0,0,0.20)] [--status-bar-bg:#f0f0f0] [--status-bar-text:#171717]",
+      ];
+
+  return (
+    <div
+      className={cn(
+        isDark && "dark",
+        "relative h-screen w-full overflow-hidden bg-background text-foreground",
+        "selection:bg-primary selection:text-primary-foreground",
+        ...themeVariables,
       )}
     >
       <div className="absolute inset-0 z-40" ref={domRef}>
         <CanvasErrorBoundary>
-          <InfiniteCanvas
-            ref={canvasRef}
-            frames={frameRects}
-            activeFrameId={activeFrameId}
-            onFrameExit={exitFrame}
-            onTransformChange={handleTransformChange}
-          >
+          <StudioThemeProvider value={{ mode: themeMode, isDark }}>
+            <InfiniteCanvas
+              ref={canvasRef}
+              frames={frameRects}
+              activeFrameId={activeFrameId}
+              onFrameExit={exitFrame}
+              onTransformChange={handleTransformChange}
+            >
             {/* <SandpackProvider> */}
             {frameList.map((frame) => (
               <CanvasFrame
@@ -2700,6 +2749,7 @@ npm run dev
             ))}
             {/* </SandpackProvider> */}
           </InfiniteCanvas>
+          </StudioThemeProvider>
         </CanvasErrorBoundary>
 
         {frameList.length === 0 && (
@@ -2708,23 +2758,23 @@ npm run dev
             role="status"
             aria-live="polite"
           >
-            <div className="pointer-events-auto w-[min(420px,calc(100%-2rem))] rounded-lg border border-white/10 bg-[#181818]/95 p-6 text-center shadow-2xl shadow-black/40">
+            <div className="pointer-events-auto w-[min(420px,calc(100%-2rem))] rounded-lg border border-border bg-card/95 p-6 text-center shadow-2xl shadow-black/40">
               <div
-                className="mx-auto flex size-10 items-center justify-center rounded-md border border-white/10 bg-white/5"
+                className="mx-auto flex size-10 items-center justify-center rounded-md border border-border bg-foreground/5"
                 aria-hidden="true"
               >
                 {isGenerating ? (
-                  <Sparkles className="size-5 animate-spin text-white/80" />
+                  <Sparkles className="size-5 animate-spin text-foreground/80" />
                 ) : (
-                  <Code2 className="size-5 text-white/70" />
+                  <Code2 className="size-5 text-foreground/70" />
                 )}
               </div>
-              <h2 className="mt-4 text-base font-semibold text-white">
+              <h2 className="mt-4 text-base font-semibold text-foreground">
                 {isGenerating
                   ? "Preparing screens"
                   : "No screens on this canvas"}
               </h2>
-              <p className="mt-2 text-sm leading-6 text-white/55">
+              <p className="mt-2 text-sm leading-6 text-foreground/55">
                 {isGenerating
                   ? "LOGIC is extracting the app spec and will place preview screens here shortly."
                   : "Use the prompt bar below to generate a new UI, or restore a project from history."}
@@ -2744,6 +2794,8 @@ npm run dev
         title={project.title || "Untitled Project"}
         platform={platform}
         handleMenuClick={handleMenuClick}
+        themeMode={themeMode}
+        onThemeChange={handleThemeChange}
       />
 
       <FeedbackForm
@@ -2752,7 +2804,7 @@ npm run dev
       />
 
       <Dialog open={metadataDialogOpen} onOpenChange={setMetadataDialogOpen}>
-        <DialogContent className="border-white/10 bg-[#181818] text-white">
+        <DialogContent className="border-border bg-card text-foreground">
           <DialogHeader>
             <DialogTitle>Edit project</DialogTitle>
             <DialogDescription>
@@ -2766,7 +2818,7 @@ npm run dev
                 id="project-title"
                 value={metadataTitle}
                 onChange={(event) => setMetadataTitle(event.target.value)}
-                className="bg-black/20"
+                className="bg-muted/50"
                 maxLength={120}
               />
             </div>
@@ -2776,7 +2828,7 @@ npm run dev
                 id="project-description"
                 value={metadataDescription}
                 onChange={(event) => setMetadataDescription(event.target.value)}
-                className="min-h-28 bg-black/20"
+                className="min-h-28 bg-muted/50"
                 maxLength={500}
               />
             </div>
@@ -2806,9 +2858,9 @@ npm run dev
         open={codeEditorOpen}
         // onOpenChange={handleCloseCodeEditor}
       >
-        <DrawerContent className="min-w-3xl border-white/10 bg-[#111111] text-white">
-          <DrawerHeader className="border-b border-white/10">
-            <DrawerTitle className="flex items-center gap-2 text-white">
+        <DrawerContent className="min-w-3xl border-border bg-background text-foreground">
+          <DrawerHeader className="border-b border-border">
+            <DrawerTitle className="flex items-center gap-2 text-foreground">
               <Code2 className="size-4" />
               Edit generated TSX
             </DrawerTitle>
@@ -2823,12 +2875,12 @@ npm run dev
               onChange={(event) => setCodeEditorValue(event.target.value)}
               spellCheck={false}
               className={cn(
-                "min-h-[calc(100vh-190px)] flex-1 resize-none border-white/10 bg-black/40 font-mono text-xs leading-5 text-white scrollbar",
+                "min-h-[calc(100vh-190px)] flex-1 resize-none border-border bg-muted font-mono text-xs leading-5 text-foreground scrollbar",
                 mono.className,
               )}
             />
           </div>
-          <DrawerFooter className="border-t border-white/10">
+          <DrawerFooter className="border-t border-border">
             <div className="flex justify-end gap-2">
               <Button
                 type="button"
@@ -2873,7 +2925,7 @@ npm run dev
               {activeFrameId && (
                 <span
                   className={cn(
-                    "inline-flex items-center gap-2 rounded-xl border border-border px-2 py-1 text-[10px] text-black bg-white",
+                    "inline-flex items-center gap-2 rounded-xl border border-border px-2 py-1 text-[10px] text-primary-foreground bg-primary",
                     mono.className,
                   )}
                 >
@@ -2922,7 +2974,7 @@ className={cn(
           </div>
 
           {(generationErrorMessage || generationRecoveryPrompt) && (
-            <div className="mb-2 flex items-center justify-between gap-3 rounded-md border border-red-400/25 bg-red-500/10 px-3 py-2 text-xs text-red-100">
+            <div className="mb-2 flex items-center justify-between gap-3 rounded-md border border-red-400/25 bg-red-500/10 px-3 py-2 text-xs text-destructive">
               <span className="line-clamp-2">
                 {generationErrorMessage ||
                   "Generation was interrupted before it finished."}
